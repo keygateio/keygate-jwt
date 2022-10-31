@@ -16,3 +16,8 @@ pub use self::es256::*;
 pub use self::es256k::*;
 #[cfg(feature = "ecdsa")]
 pub use self::es384::*;
+
+#[cfg(feature = "none")]
+mod none;
+#[cfg(feature = "none")]
+pub use self::none::*;

@@ -16,7 +16,11 @@ pub mod unix_timestamp {
         where
             E: DeError,
         {
-            Ok(UnixTimeStamp::from_secs(value as _))
+            if value > u64::MAX as i64 {
+                Err(DeError::custom("timestamp too large"))
+            } else {
+                Ok(UnixTimeStamp::from_secs(value as u64))
+            }
         }
 
         fn visit_u64<E>(self, value: u64) -> Result<Self::Value, E>
@@ -30,7 +34,11 @@ pub mod unix_timestamp {
         where
             E: DeError,
         {
-            Ok(UnixTimeStamp::from_secs(value as _))
+            if value > u64::MAX as f64 {
+                Err(DeError::custom("timestamp too large"))
+            } else {
+                Ok(UnixTimeStamp::from_secs(value as u64))
+            }
         }
 
         fn expecting(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {

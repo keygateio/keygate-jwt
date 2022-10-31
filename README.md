@@ -25,12 +25,15 @@ A new JWT (JSON Web Tokens) implementation for Rust that focuses on simplicity, 
 
 `keygate-jwt` is opinionated and only supports secure signature algorithms:
 
-| JWT algorithm name | Description                    |
-| ------------------ | ------------------------------ |
-| `ES256`            | ECDSA over p256 / SHA-256      |
-| `ES384`            | ECDSA over p384 / SHA-384      |
-| `ES256K`           | ECDSA over secp256k1 / SHA-256 |
-| `EdDSA`            | Ed25519                        |
+| JWT algorithm name | Feature | Description                    |
+| ------------------ | ------- | ------------------------------ |
+| `ES256`            | `ecdsa` | ECDSA over p256 / SHA-256      |
+| `ES384`            | `ecdsa` | ECDSA over p384 / SHA-384      |
+| `ES256K`           | `ecdsa` | ECDSA over secp256k1 / SHA-256 |
+| `EdDSA`            | `eddsa` | Ed25519                        |
+
+Additionally, you can enable support for the `none` algorithm, which is useful for testing purposes.
+This algorithm is disabled by default and should never be used to on its own. It can however be useful for non security relevant data. JWTs created with the `none` algorithm are not verified and can be tampered with. Additionally, the `none` algorithm does not provide any integrity guarantees. To make sure that the `none` algorithm is never used instead of a secure algorithm, it is marked as unsafe and requires an explicit opt-in.
 
 `keygate-jwt` uses only pure Rust implementations, and can be compiled out of the box to WebAssembly/WASI.
 
