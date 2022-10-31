@@ -12,34 +12,34 @@ repository = "https://github.com/jedisct1/rust-jwt-simple"
 version = "0.11.2"
 
 [dependencies]
-anyhow = "1.0.66"
-binstring = "0.1.1"
+anyhow = "1.0"
+binstring = "0."
 ciborium = {version = "0.2.0", optional = true}
-coarsetime = "0.1.22"
-ct-codecs = "1.1.1"
+coarsetime = "0.1"
+ct-codecs = "1.1"
 
 # ecdsa
-k256 = {version = "0.11.6", features = ["ecdsa", "std", "pkcs8", "pem"], optional = true}
-p256 = {version = "0.11.1", features = ["ecdsa", "std", "pkcs8", "pem"], optional = true}
-p384 = {version = "0.11.2", features = ["ecdsa", "std", "pkcs8", "pem"], optional = true}
+k256 = {version = "0.11", features = ["ecdsa", "std", "pkcs8", "pem"], optional = true}
+p256 = {version = "0.11", features = ["ecdsa", "std", "pkcs8", "pem"], optional = true}
+p384 = {version = "0.11", features = ["ecdsa", "std", "pkcs8", "pem"], optional = true}
 
 # eddsa
-ed25519-compact = {version = "2.0.2", features = ["pem"], optional = true}
+ed25519-compact = {version = "2.0", features = ["pem"], optional = true}
 
 # hmac
-hmac-sha1-compact = {version = "1.1.2", optional = true}
-hmac-sha256 = {version = "1.1.5", features = ["traits010"], optional = true}
-hmac-sha512 = {version = "1.1.3", features = ["traits010", "sha384"], optional = true}
+hmac-sha1-compact = {version = "1.1", optional = true}
+hmac-sha256 = {version = "1.1", features = ["traits010"], optional = true}
+hmac-sha512 = {version = "1.1", features = ["traits010", "sha384"], optional = true}
 
 # rsa
-rsa = {version = "0.7.0", optional = true}
-spki = {version = "0.6.0", optional = true}
+rsa = {version = "0.7", optional = true}
+spki = {version = "0.6", optional = true}
 
-rand = "0.8.5"
-serde = {version = "1.0.147", features = ["derive"]}
-serde_json = "1.0.87"
-thiserror = "1.0.37"
-zeroize = "1.5.7"
+rand = "0.8"
+serde = {version = "1.0", features = ["derive"]}
+serde_json = "1.0"
+thiserror = "1.0"
+zeroize = "1.5"
 
 [features]
 default = ["rsa"]
