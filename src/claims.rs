@@ -2,8 +2,6 @@ use std::collections::HashSet;
 use std::convert::TryInto;
 
 use coarsetime::{Clock, Duration, UnixTimeStamp};
-use ct_codecs::{Base64UrlSafeNoPadding, Encoder};
-use rand::RngCore;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 
 use crate::common::VerificationOptions;
@@ -178,7 +176,7 @@ impl<CustomClaims> JWTClaims<CustomClaims> {
         let time_tolerance = options.time_tolerance.unwrap_or_default();
 
         if let Some(reject_before) = options.reject_before {
-            if !(now <= reject_before) {
+            if now > reject_before {
                 return Err(JWTError::OldTokenReused);
             }
         }
@@ -285,16 +283,6 @@ impl<CustomClaims> JWTClaims<CustomClaims> {
     pub fn with_nonce(mut self, nonce: impl ToString) -> Self {
         self.nonce = Some(nonce.to_string());
         self
-    }
-
-    /// Create a nonce, attach it and return it
-    pub fn create_nonce(&mut self) -> String {
-        let mut raw_nonce = [0u8; 24];
-        let mut rng = rand::thread_rng();
-        rng.fill_bytes(&mut raw_nonce);
-        let nonce = Base64UrlSafeNoPadding::encode_to_string(raw_nonce).unwrap();
-        self.nonce = Some(nonce);
-        self.nonce.as_deref().unwrap().to_string()
     }
 }
 

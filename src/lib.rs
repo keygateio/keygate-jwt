@@ -309,16 +309,6 @@ pub mod token;
 mod jwt_header;
 mod serde_additions;
 
-pub mod reexports {
-    pub use coarsetime;
-    pub use ct_codecs;
-    pub use rand;
-    pub use serde;
-    pub use serde_json;
-    pub use thiserror;
-    pub use zeroize;
-}
-
 mod error;
 pub use error::{Error, JWTError};
 
@@ -513,8 +503,8 @@ a3t0cyDKinOY7JGIwh8DWAa4pfEzgg56yLcilYSSohXeaQV0nR8+rm9J8GUYXjPK
     #[test]
     fn require_nonce() {
         let key = HS256Key::generate();
-        let mut claims = Claims::create(Duration::from_hours(1));
-        let nonce = claims.create_nonce();
+        let nonce = "some-nonce".to_string();
+        let claims = Claims::create(Duration::from_hours(1)).with_nonce(nonce.clone());
         let token = key.authenticate(claims).unwrap();
 
         let options = VerificationOptions {

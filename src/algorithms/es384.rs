@@ -60,9 +60,9 @@ impl P384PublicKey {
 
     pub fn to_pem(&self) -> Result<String, JWTError> {
         let p384_pk = p384::PublicKey::from(self.0);
-        Ok(p384_pk
+        p384_pk
             .to_public_key_pem(Default::default())
-            .map_err(|_| JWTError::InvalidPublicKey)?)
+            .map_err(|_| JWTError::InvalidPublicKey)
     }
 }
 
@@ -112,7 +112,7 @@ impl P384KeyPair {
     pub fn to_der(&self) -> Result<Vec<u8>, JWTError> {
         let scalar = NonZeroScalar::from_repr(self.p384_sk.to_bytes());
         if bool::from(scalar.is_none()) {
-            return Err(JWTError::InvalidKeyPair.into());
+            return Err(JWTError::InvalidKeyPair);
         }
         let p384_sk =
             p384::SecretKey::from(NonZeroScalar::from_repr(scalar.unwrap().into()).unwrap());
@@ -126,7 +126,7 @@ impl P384KeyPair {
     pub fn to_pem(&self) -> Result<String, JWTError> {
         let scalar = NonZeroScalar::from_repr(self.p384_sk.to_bytes());
         if bool::from(scalar.is_none()) {
-            return Err(JWTError::InvalidKeyPair.into());
+            return Err(JWTError::InvalidKeyPair);
         }
         let p384_sk =
             p384::SecretKey::from(NonZeroScalar::from_repr(scalar.unwrap().into()).unwrap());

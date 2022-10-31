@@ -15,8 +15,6 @@ version = "0.11.2"
 coarsetime = "0.1"
 ct-codecs = "1.1"
 
-sha2 = {version = "0.10"}
-
 # ecdsa
 k256 = {version = "0.11", features = ["ecdsa", "std", "pkcs8", "pem"], optional = true}
 p256 = {version = "0.11", features = ["ecdsa", "std", "pkcs8", "pem"], optional = true}
@@ -24,29 +22,30 @@ p384 = {version = "0.11", features = ["ecdsa", "std", "pkcs8", "pem"], optional 
 
 # eddsa
 ed25519-compact = {version = "2.0", features = ["pem"], optional = true}
+sha2 = {version = "0.10"}
 
 # hmac
 hmac-sha1-compact = {version = "1.1", optional = true}
 hmac-sha256 = {version = "1.1", features = ["traits010"], optional = true}
 hmac-sha512 = {version = "1.1", features = ["traits010", "sha384"], optional = true}
+zeroize = {version = "1.4", features = ["alloc"], optional = true}
 
 # rsa
 rsa = {version = "0.7", optional = true}
 spki = {version = "0.6", optional = true}
 
-rand = "0.8"
+rand = {version = "0.8", optional = true}
 serde = {version = "1.0", features = ["derive"]}
 serde_json = "1.0"
 thiserror = "1.0"
-zeroize = "1.5"
 
 [features]
-default = ["eddsa", "ecdsa", "hmac", "rsa"]
+default = ["eddsa"]
 
 ecdsa = ["hmac", "dep:k256", "dep:p256", "dep:p384"]
 eddsa = ["dep:ed25519-compact", "dep:hmac-sha1-compact", "dep:hmac-sha256"]
-hmac = ["dep:hmac-sha1-compact", "dep:hmac-sha256", "dep:hmac-sha512"]
-rsa = ["hmac", "dep:rsa", "dep:spki"]
+hmac = ["dep:hmac-sha1-compact", "dep:zeroize", "dep:rand", "dep:hmac-sha256", "dep:hmac-sha512"]
+rsa = ["hmac", "dep:rand", "dep:rsa", "dep:spki"]
 
 [dev-dependencies]
 benchmark-simple = "0.1.7"

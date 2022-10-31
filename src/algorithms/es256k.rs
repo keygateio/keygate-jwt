@@ -55,9 +55,9 @@ impl K256PublicKey {
 
     pub fn to_pem(&self) -> Result<String, JWTError> {
         let k256_pk = k256::PublicKey::from(self.0);
-        Ok(k256_pk
+        k256_pk
             .to_public_key_pem(Default::default())
-            .map_err(|_| JWTError::InvalidPublicKey)?)
+            .map_err(|_| JWTError::InvalidPublicKey)
     }
 }
 
