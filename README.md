@@ -1,17 +1,14 @@
-[![GitHub CI](https://github.com/jedisct1/rust-jwt-simple/workflows/Rust/badge.svg)](https://github.com/jedisct1/rust-jwt-simple/actions)
-[![Docs.rs](https://docs.rs/jwt-simple/badge.svg)](https://docs.rs/jwt-simple/)
-[![crates.io](https://img.shields.io/crates/v/jwt-simple.svg)](https://crates.io/crates/jwt-simple)
+[![GitHub CI](https://github.com/keygateio/keygate-jwt/workflows/Rust/badge.svg)](https://github.com/keygateio/keygate-jwt/actions)
+[![Docs.rs](https://docs.rs/keygate-jwt/badge.svg)](https://docs.rs/keygate-jwt/)
+[![crates.io](https://img.shields.io/crates/v/keygate-jwt.svg)](https://crates.io/crates/keygate-jwt)
 
 <!-- @import "[TOC]" {cmd="toc" depthFrom=1 depthTo=6 orderedList=false} -->
 
 <!-- code_chunk_output -->
 
-- [JWT-Simple](#jwt-simple)
+- [keygate-jwt](#keygate-jwt)
   - [Usage](#usage)
-  - [Authentication (symmetric, `HS*` JWT algorithms) example](#authentication-symmetric-hs-jwt-algorithms-example)
-    - [Keys and tokens creation](#keys-and-tokens-creation)
-    - [Token verification](#token-verification)
-  - [Signatures (asymmetric, `RS*`, `PS*`, `ES*` and `EdDSA` algorithms) example](#signatures-asymmetric-rs-ps-es-and-eddsa-algorithms-example)
+  - [Signatures](#signatures)
     - [Key pairs and tokens creation](#key-pairs-and-tokens-creation)
   - [Advanced usage](#advanced-usage)
     - [Custom claims](#custom-claims)
@@ -22,29 +19,20 @@
 
 <!-- /code_chunk_output -->
 
-# JWT-Simple
+# keygate-jwt
 
 A new JWT (JSON Web Tokens) implementation for Rust that focuses on simplicity, while avoiding common JWT security pitfalls.
 
-`jwt-simple` is unopinionated and supports all commonly deployed authentication and signature algorithms:
+`keygate-jwt` is opinionated and only supports secure signature algorithms:
 
-| JWT algorithm name | Description                           |
-| ------------------ | ------------------------------------- |
-| `HS256`            | HMAC-SHA-256                          |
-| `HS384`            | HMAC-SHA-384                          |
-| `HS512`            | HMAC-SHA-512                          |
-| `RS256`            | RSA with PKCS#1v1.5 padding / SHA-256 |
-| `RS384`            | RSA with PKCS#1v1.5 padding / SHA-384 |
-| `RS512`            | RSA with PKCS#1v1.5 padding / SHA-512 |
-| `PS256`            | RSA with PSS padding / SHA-256        |
-| `PS384`            | RSA with PSS padding / SHA-384        |
-| `PS512`            | RSA with PSS padding / SHA-512        |
-| `ES256`            | ECDSA over p256 / SHA-256             |
-| `ES384`            | ECDSA over p384 / SHA-384             |
-| `ES256K`           | ECDSA over secp256k1 / SHA-256        |
-| `EdDSA`            | Ed25519                               |
+| JWT algorithm name | Description                    |
+| ------------------ | ------------------------------ |
+| `ES256`            | ECDSA over p256 / SHA-256      |
+| `ES384`            | ECDSA over p384 / SHA-384      |
+| `ES256K`           | ECDSA over secp256k1 / SHA-256 |
+| `EdDSA`            | Ed25519                        |
 
-`jwt-simple` uses only pure Rust implementations, and can be compiled out of the box to WebAssembly/WASI. It is fully compatible with Fastly's _Compute@Edge_ service.
+`keygate-jwt` uses only pure Rust implementations, and can be compiled out of the box to WebAssembly/WASI.
 
 Important: JWT's purpose is to verify that data has been created by a party knowing a secret key. It does not provide any kind of confidentiality: JWT data is simply encoded as BASE64, and is not encrypted.
 
@@ -54,77 +42,12 @@ Important: JWT's purpose is to verify that data has been created by a party know
 
 ```toml
 [dependencies]
-jwt-simple = "0.10"
+keygate-jwt = "1.0"
 ```
 
-Rust:
+Errors are returned as `keygate-jwt::Error` values
 
-```rust
-use jwt_simple::prelude::*;
-```
-
-Errors are returned as `jwt_simple::Error` values (alias for the `Error` type of the `thiserror` crate).
-
-## Authentication (symmetric, `HS*` JWT algorithms) example
-
-Authentication schemes use the same key for creating and verifying tokens. In other words, both parties need to ultimately trust each other, or else the verifier could also create arbitrary tokens.
-
-### Keys and tokens creation
-
-Key creation:
-
-```rust
-use jwt_simple::prelude::*;
-
-// create a new key for the `HS256` JWT algorithm
-let key = HS256Key::generate();
-```
-
-A key can be exported as bytes with `key.to_bytes()`, and restored with `HS256Key::from_bytes()`.
-
-Token creation:
-
-```rust
-/// create claims valid for 2 hours
-let claims = Claims::create(Duration::from_hours(2));
-let token = key.authenticate(claims)?;
-```
-
--> Done!
-
-### Token verification
-
-```rust
-let claims = key.verify_token::<NoCustomClaims>(&token, None)?;
-```
-
--> Done! No additional steps required.
-
-Key expiration, start time, authentication tags, etc. are automatically verified. The function fails with `JWTError::InvalidAuthenticationTag` if the authentication tag is invalid for the given key.
-
-The full set of claims can be inspected in the `claims` object if necessary. `NoCustomClaims` means that only the standard set of claims is used by the application, but application-defined claims can also be supported.
-
-Extra verification steps can optionally be enabled via the `ValidationOptions` structure:
-
-```rust
-let mut options = VerificationOptions::default();
-// Accept tokens that will only be valid in the future
-options.accept_future = true;
-// accept tokens even if they have expired up to 15 minutes after the deadline
-options.time_tolerance = Some(Duration::from_mins(15));
-// reject tokens if they were issued more than 1 hour ago
-options.max_validity = Some(Duration::from_hours(1));
-// reject tokens if they don't include an issuer from that set
-options.allowed_issuers = Some(HashSet::from_strings(&["example app"]));
-
-// see the documentation for the full list of available options
-
-let claims = key.verify_token::<NoCustomClaims>(&token, Some(options))?;
-```
-
-Note that `allowed_issuers` and `allowed_audiences` are not strings, but sets of strings (using the `HashSet` type from the Rust standard library), as the application can allow multiple return values.
-
-## Signatures (asymmetric, `RS*`, `PS*`, `ES*` and `EdDSA` algorithms) example
+## Signatures
 
 A signature requires a key pair: a secret key used to create tokens, and a public key, that can only verify them.
 
@@ -137,7 +60,7 @@ Key creation:
 #### ES256
 
 ```rust
-use jwt_simple::prelude::*;
+use keygate_jwt::prelude::*;
 
 // create a new key pair for the `ES256` JWT algorithm
 let key_pair = ES256KeyPair::generate();
@@ -149,7 +72,7 @@ let public_key = key_pair.public_key();
 #### ES384
 
 ```rust
-use jwt_simple::prelude::*;
+use keygate_jwt::prelude::*;
 
 // create a new key pair for the `ES384` JWT algorithm
 let key_pair = ES384KeyPair::generate();
@@ -244,32 +167,21 @@ let algorithm = metadata.algorithm();
 As a result, `algorithm` should be used only for debugging purposes, and never to select a key type.
 Similarly, `key_id` should be used only to select a key in a set of keys made for the same algorithm.
 
-At the bare minimum, verification using `HS*` must be prohibited if a signature scheme was originally used to create the token.
-
 ### Mitigations against replay attacks
 
-`jwt-simple` includes mechanisms to mitigate replay attacks:
+`keygate-jwt` includes mechanisms to mitigate replay attacks:
 
-- Nonces can be created and attached to new tokens using the `create_nonce()` claim function. The verification procedure can later reject any token that doesn't include the expected nonce (`required_nonce` verification option).
+- Nonces can be attached to new tokens using the `with_nonce()` claim function. The verification procedure can later reject any token that doesn't include the expected nonce (`required_nonce` verification option).
 - The verification procedure can reject tokens created too long ago, no matter what their expiration date is. This prevents tokens from malicious (or compromised) signers from being used for too long.
 - The verification procedure can reject tokens created before a date. For a given user, the date of the last successful authentication can be stored in a database, and used later along with this option to reject older (replayed) tokens.
 
 ## Why yet another JWT crate
 
-This crate is not an endorsement of JWT. JWT is [an awful design](https://tools.ietf.org/html/rfc8725), and one of the many examples that "but this is a standard" doesn't necessarily mean that it is good.
+There are already several JWT crates for Rust, but none of them satisfied our needs:
 
-I would highly recommend [PASETO](https://github.com/paragonie/paseto) or [Biscuit](https://github.com/CleverCloud/biscuit) instead if you control both token creation and verification.
+- no insecure algorithms (such as `RSA` or `HS256`) and hash functions (such as `SHA1`) are supported
+- minimal, rust-only dependencies
 
-However, JWT is still widely used in the industry, and remains absolutely mandatory to communicate with popular APIs.
+## Credits
 
-This crate was designed to:
-
-- Be simple to use, even to people who are new to Rust
-- Avoid common JWT API pitfalls
-- Support features widely in use. I'd love to limit the algorithm choices to Ed25519, but other methods are required to connect to existing APIs, so just provide them (with the exception of the `None` signature method for obvious reasons).
-- Minimize code complexity and external dependencies
-- Automatically perform common tasks to prevent misuse. Signature verification and claims validation happen automatically instead of relying on applications.
-- Still allow power users to access everything JWT tokens include if they really need to
-- Be as portable as possible by using only Rust implementations of cryptographic primitives
-- Have no dependency on OpenSSL
-- Work out of the box in a WebAssembly environment, so that it can be used in function-as-a-service platforms.
+This crate is based on the [jwt-simple](https://github.com/jedisct1/rust-jwt-simple) project by Frank Denis.

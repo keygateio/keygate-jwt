@@ -1,15 +1,14 @@
 [package]
-authors = ["Frank Denis <github@pureftpd.org>"]
 categories = ["wasm", "api-bindings", "web-programming", "cryptography"]
-description = "Easy to use, secure, non opinionated JWT (JSON Web Tokens) implementation for Rust."
-edition = "2018"
-homepage = "https://github.com/jedisct1/rust-jwt-simple"
+description = "Easy to use, secure, opinionated JWT (JSON Web Tokens) implementation for Rust."
+edition = "2021"
+homepage = "https://github.com/keygateio/keygate-jwt"
 keywords = ["jwt", "jws", "authentication", "tokens", "json"]
 license = "ISC"
-name = "jwt-simple"
+name = "keygate-jwt"
 readme = "README.md"
-repository = "https://github.com/jedisct1/rust-jwt-simple"
-version = "0.11.2"
+repository = "https://github.com/keygateio/keygate-jwt"
+version = "1.0.0"
 
 [dependencies]
 coarsetime = "0.1"
@@ -19,41 +18,21 @@ ct-codecs = "1.1"
 k256 = {version = "0.11", features = ["ecdsa", "std", "pkcs8", "pem"], optional = true}
 p256 = {version = "0.11", features = ["ecdsa", "std", "pkcs8", "pem"], optional = true}
 p384 = {version = "0.11", features = ["ecdsa", "std", "pkcs8", "pem"], optional = true}
+rand = {version = "0.8", features = [], optional = true}
 
 # eddsa
 ed25519-compact = {version = "2.0", features = ["pem"], optional = true}
 sha2 = {version = "0.10"}
 
-# hmac
-hmac-sha1-compact = {version = "1.1", optional = true}
-hmac-sha256 = {version = "1.1", features = ["traits010"], optional = true}
-hmac-sha512 = {version = "1.1", features = ["traits010", "sha384"], optional = true}
-zeroize = {version = "1.4", features = ["alloc"], optional = true}
-
-# rsa
-rsa = {version = "0.7", optional = true}
-spki = {version = "0.6", optional = true}
-
-rand = {version = "0.8", optional = true}
 serde = {version = "1.0", features = ["derive"]}
 serde_json = "1.0"
 thiserror = "1.0"
 
 [features]
-default = ["eddsa"]
+default = ["eddsa", "ecdsa"]
 
-ecdsa = ["hmac", "dep:k256", "dep:p256", "dep:p384"]
-eddsa = ["dep:ed25519-compact", "dep:hmac-sha1-compact", "dep:hmac-sha256"]
-hmac = ["dep:hmac-sha1-compact", "dep:zeroize", "dep:rand", "dep:hmac-sha256", "dep:hmac-sha512"]
-rsa = ["hmac", "dep:rand", "dep:rsa", "dep:spki"]
-
-[dev-dependencies]
-benchmark-simple = "0.1.7"
-
-[[bench]]
-harness = false
-name = "rsa"
-required-features = ["rsa"]
+ecdsa = ["dep:k256", "dep:p256", "dep:p384", "dep:rand"]
+eddsa = ["dep:ed25519-compact"]
 
 [profile.release]
 codegen-units = 1

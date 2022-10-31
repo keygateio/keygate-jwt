@@ -79,22 +79,6 @@ pub enum JWTError {
     #[cfg(feature = "eddsa")]
     #[error(transparent)]
     Ed25519(#[from] ed25519_compact::Error),
-
-    #[cfg(feature = "rsa")]
-    #[error(transparent)]
-    RSA(#[from] rsa::errors::Error),
-
-    #[cfg(feature = "rsa")]
-    #[error(transparent)]
-    Pkcs8(#[from] rsa::pkcs8::Error),
-
-    #[cfg(feature = "rsa")]
-    #[error(transparent)]
-    Pkcs1(#[from] rsa::pkcs1::Error),
-
-    #[cfg(feature = "rsa")]
-    #[error(transparent)]
-    Spki(#[from] spki::Error),
 }
 
 impl From<&str> for JWTError {

@@ -31,9 +31,6 @@ pub(crate) struct JWTHeader {
     #[serde(rename = "x5u", default, skip_serializing_if = "Option::is_none")]
     pub certificate_url: Option<String>,
 
-    #[serde(rename = "x5t", default, skip_serializing_if = "Option::is_none")]
-    pub certificate_sha1_thumbprint: Option<String>,
-
     #[serde(rename = "x5t#S256", default, skip_serializing_if = "Option::is_none")]
     pub certificate_sha256_thumbprint: Option<String>,
 }
@@ -48,7 +45,6 @@ impl Default for JWTHeader {
             key_id: None,
             certificate_url: None,
             certificate_chain: None,
-            certificate_sha1_thumbprint: None,
             certificate_sha256_thumbprint: None,
             signature_type: Some("JWT".to_string()),
             critical: None,
@@ -78,9 +74,6 @@ impl JWTHeader {
         }
         if self.certificate_url.is_none() {
             self.certificate_url = metadata.certificate_url.clone();
-        }
-        if self.certificate_sha1_thumbprint.is_none() {
-            self.certificate_sha1_thumbprint = metadata.certificate_sha1_thumbprint.clone();
         }
         if self.certificate_sha256_thumbprint.is_none() {
             self.certificate_sha256_thumbprint = metadata.certificate_sha256_thumbprint.clone();

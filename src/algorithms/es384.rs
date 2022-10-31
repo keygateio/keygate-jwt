@@ -5,6 +5,7 @@ use p384::ecdsa::{self, signature::DigestVerifier as _, signature::RandomizedDig
 use p384::pkcs8::{DecodePrivateKey, DecodePublicKey, EncodePrivateKey, EncodePublicKey};
 use p384::NonZeroScalar;
 use serde::{de::DeserializeOwned, Serialize};
+use sha2::{Digest, Sha256, Sha384};
 
 use crate::claims::*;
 use crate::common::*;
@@ -165,7 +166,7 @@ pub trait ECDSAP384KeyPairLike {
         let jwt_header = JWTHeader::new(Self::jwt_alg_name().to_string(), self.key_id().clone())
             .with_metadata(self.metadata());
         Token::build(&jwt_header, claims, |authenticated| {
-            let mut digest = hmac_sha512::sha384::Hash::new();
+            let mut digest = Sha384::new();
             digest.update(authenticated.as_bytes());
             let rng = rand::thread_rng();
             let signature: ecdsa::Signature =
@@ -193,7 +194,7 @@ pub trait ECDSAP384PublicKeyLike {
             |authenticated, signature| {
                 let ecdsa_signature = ecdsa::Signature::try_from(signature)
                     .map_err(|_| JWTError::InvalidSignature)?;
-                let mut digest = hmac_sha512::sha384::Hash::new();
+                let mut digest = Sha384::new();
                 digest.update(authenticated.as_bytes());
                 self.public_key()
                     .as_ref()
@@ -205,12 +206,10 @@ pub trait ECDSAP384PublicKeyLike {
     }
 
     fn create_key_id(&mut self) -> &str {
-        self.set_key_id(
-            Base64UrlSafeNoPadding::encode_to_string(hmac_sha256::Hash::hash(
-                &self.public_key().to_bytes(),
-            ))
-            .unwrap(),
-        );
+        let mut digest = Sha256::new();
+        digest.update(self.public_key().to_bytes());
+
+        self.set_key_id(Base64UrlSafeNoPadding::encode_to_string(digest.finalize()).unwrap());
         self.key_id().as_ref().map(|x| x.as_str()).unwrap()
     }
 }

@@ -78,14 +78,6 @@ impl TokenMetadata {
         self.jwt_header.certificate_url.as_deref()
     }
 
-    /// URLsafe-base64-encoded SHA1 hash of the X.509 certificate for this token
-    /// ("x5t") In practice, it can also be any string representing the
-    /// public key. This information should not be trusted: it is
-    /// unprotected and can be freely modified by a third party.
-    pub fn certificate_sha1_thumbprint(&self) -> Option<&str> {
-        self.jwt_header.certificate_sha1_thumbprint.as_deref()
-    }
-
     /// URLsafe-base64-encoded SHA256 hash of the X.509 certificate for this
     /// token ("x5t#256") In practice, it can also be any string
     /// representing the public key. This information should not be trusted:
@@ -191,77 +183,89 @@ impl Token {
     }
 }
 
-#[cfg(hmac)]
 #[test]
 fn should_verify_token() {
     use crate::prelude::*;
 
-    let key = HS256Key::generate();
+    let key_pair = Ed25519KeyPair::generate();
 
     let issuer = "issuer";
     let audience = "recipient";
-    let mut claims = Claims::create(Duration::from_mins(10))
+    let nonce = "some_nonce";
+    let claims = Claims::create(Duration::from_mins(10))
         .with_issuer(issuer)
-        .with_audience(audience);
-    let nonce = claims.create_nonce();
-    let token = key.authenticate(claims).unwrap();
+        .with_audience(audience)
+        .with_nonce(nonce);
+
+    let token = key_pair.sign(claims).unwrap();
 
     let options = VerificationOptions {
-        required_nonce: Some(nonce),
+        required_nonce: Some(nonce.to_string()),
         allowed_issuers: Some(HashSet::from_strings(&[issuer])),
         allowed_audiences: Some(HashSet::from_strings(&[audience])),
         ..Default::default()
     };
-    key.verify_token::<NoCustomClaims>(&token, Some(options))
+    key_pair
+        .public_key()
+        .verify_token::<NoCustomClaims>(&token, Some(options))
         .unwrap();
 }
 
-#[cfg(hmac)]
 #[test]
 fn multiple_audiences() {
     use std::collections::HashSet;
 
     use crate::prelude::*;
 
-    let key = HS256Key::generate();
+    let key_pair = Ed25519KeyPair::generate();
 
     let mut audiences = HashSet::new();
     audiences.insert("audience 1");
     audiences.insert("audience 2");
     audiences.insert("audience 3");
     let claims = Claims::create(Duration::from_mins(10)).with_audiences(audiences);
-    let token = key.authenticate(claims).unwrap();
+    let token = key_pair.sign(claims).unwrap();
 
     let options = VerificationOptions {
         allowed_audiences: Some(HashSet::from_strings(&["audience 1"])),
         ..Default::default()
     };
-    key.verify_token::<NoCustomClaims>(&token, Some(options))
+    key_pair
+        .public_key()
+        .verify_token::<NoCustomClaims>(&token, Some(options))
         .unwrap();
 }
 
-#[cfg(hmac)]
 #[test]
 fn explicitly_empty_audiences() {
     use std::collections::HashSet;
 
     use crate::prelude::*;
 
-    let key = HS256Key::generate();
+    let key_pair = Ed25519KeyPair::generate();
 
     let audiences: HashSet<&str> = HashSet::new();
     let claims = Claims::create(Duration::from_mins(10)).with_audiences(audiences);
-    let token = key.authenticate(claims).unwrap();
-    let decoded = key.verify_token::<NoCustomClaims>(&token, None).unwrap();
+    let token = key_pair.sign(claims).unwrap();
+    let decoded = key_pair
+        .public_key()
+        .verify_token::<NoCustomClaims>(&token, None)
+        .unwrap();
     assert!(decoded.audiences.is_some());
 
     let claims = Claims::create(Duration::from_mins(10)).with_audience("");
-    let token = key.authenticate(claims).unwrap();
-    let decoded = key.verify_token::<NoCustomClaims>(&token, None).unwrap();
+    let token = key_pair.sign(claims).unwrap();
+    let decoded = key_pair
+        .public_key()
+        .verify_token::<NoCustomClaims>(&token, None)
+        .unwrap();
     assert!(decoded.audiences.is_some());
 
     let claims = Claims::create(Duration::from_mins(10));
-    let token = key.authenticate(claims).unwrap();
-    let decoded = key.verify_token::<NoCustomClaims>(&token, None).unwrap();
+    let token = key_pair.sign(claims).unwrap();
+    let decoded = key_pair
+        .public_key()
+        .verify_token::<NoCustomClaims>(&token, None)
+        .unwrap();
     assert!(decoded.audiences.is_none());
 }

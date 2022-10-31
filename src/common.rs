@@ -75,7 +75,6 @@ pub struct KeyMetadata {
     pub(crate) key_set_url: Option<String>,
     pub(crate) public_key: Option<String>,
     pub(crate) certificate_url: Option<String>,
-    pub(crate) certificate_sha1_thumbprint: Option<String>,
     pub(crate) certificate_sha256_thumbprint: Option<String>,
 }
 
@@ -96,30 +95,6 @@ impl KeyMetadata {
     pub fn with_certificate_url(mut self, certificate_url: impl ToString) -> Self {
         self.certificate_url = Some(certificate_url.to_string());
         self
-    }
-
-    /// Add a certificate SHA-1 thumbprint to the metadata ("x5t")
-    pub fn with_certificate_sha1_thumbprint(
-        mut self,
-        certificate_sha1_thumbprint: impl ToString,
-    ) -> Result<Self, JWTError> {
-        let thumbprint = certificate_sha1_thumbprint.to_string();
-        let mut bin = [0u8; 20];
-        if thumbprint.len() == 40 {
-            ensure!(
-                Hex::decode(&mut bin, &thumbprint, None)?.len() == bin.len(),
-                JWTError::InvalidCertThumprint
-            );
-            let thumbprint = Base64UrlSafeNoPadding::encode_to_string(bin)?;
-            self.certificate_sha1_thumbprint = Some(thumbprint);
-            return Ok(self);
-        }
-        ensure!(
-            Base64UrlSafeNoPadding::decode(&mut bin, &thumbprint, None)?.len() == bin.len(),
-            JWTError::InvalidCertThumprint
-        );
-        self.certificate_sha1_thumbprint = Some(thumbprint);
-        Ok(self)
     }
 
     /// Add a certificate SHA-256 thumbprint to the metadata ("x5t#256")
