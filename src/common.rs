@@ -147,6 +147,7 @@ impl KeyMetadata {
     }
 }
 
+#[cfg(feature = "hmac")]
 #[inline(never)]
 pub(crate) fn timingsafe_eq(a: &[u8], b: &[u8]) -> bool {
     if a.len() != b.len() {

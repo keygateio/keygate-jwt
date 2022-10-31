@@ -1,7 +1,8 @@
-use benchmark_simple::*;
-use jwt_simple::prelude::*;
-
+#[cfg(feature = "rsa")]
 fn main() {
+    use benchmark_simple::*;
+    use jwt_simple::prelude::*;
+
     let bench = Bench::new();
 
     let options = &Options {

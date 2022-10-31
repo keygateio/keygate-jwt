@@ -190,6 +190,7 @@ impl Token {
     }
 }
 
+#[cfg(hmac)]
 #[test]
 fn should_verify_token() {
     use crate::prelude::*;
@@ -214,6 +215,7 @@ fn should_verify_token() {
         .unwrap();
 }
 
+#[cfg(hmac)]
 #[test]
 fn multiple_audiences() {
     use std::collections::HashSet;
@@ -237,6 +239,7 @@ fn multiple_audiences() {
         .unwrap();
 }
 
+#[cfg(hmac)]
 #[test]
 fn explicitly_empty_audiences() {
     use std::collections::HashSet;

@@ -1,13 +1,28 @@
+#[cfg(feature = "eddsa")]
 mod eddsa;
-mod es256;
-mod es256k;
-mod es384;
-mod hmac;
-mod rsa;
-
+#[cfg(feature = "eddsa")]
 pub use self::eddsa::*;
-pub use self::es256::*;
-pub use self::es256k::*;
-pub use self::es384::*;
+
+#[cfg(feature = "hmac")]
+mod hmac;
+#[cfg(feature = "hmac")]
 pub use self::hmac::*;
+
+#[cfg(feature = "rsa")]
+mod rsa;
+#[cfg(feature = "rsa")]
 pub use self::rsa::*;
+
+#[cfg(feature = "ecdsa")]
+mod es256;
+#[cfg(feature = "ecdsa")]
+mod es256k;
+#[cfg(feature = "ecdsa")]
+mod es384;
+
+#[cfg(feature = "ecdsa")]
+pub use self::es256::*;
+#[cfg(feature = "ecdsa")]
+pub use self::es256k::*;
+#[cfg(feature = "ecdsa")]
+pub use self::es384::*;
