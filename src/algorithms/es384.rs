@@ -5,7 +5,7 @@ use p384::ecdsa::{self, signature::DigestVerifier as _, signature::RandomizedDig
 use p384::pkcs8::{DecodePrivateKey, DecodePublicKey, EncodePrivateKey, EncodePublicKey};
 use p384::NonZeroScalar;
 use serde::{de::DeserializeOwned, Serialize};
-use sha2::{Digest, Sha256, Sha384};
+use sha2::{Digest, Sha384};
 
 use crate::claims::*;
 use crate::common::*;
@@ -205,12 +205,12 @@ pub trait ECDSAP384PublicKeyLike {
         )
     }
 
-    fn create_key_id(&mut self) -> &str {
-        let mut digest = Sha256::new();
-        digest.update(self.public_key().to_bytes());
-
-        self.set_key_id(Base64UrlSafeNoPadding::encode_to_string(digest.finalize()).unwrap());
-        self.key_id().as_ref().map(|x| x.as_str()).unwrap()
+    fn create_key_id(&mut self) -> Result<String, JWTError> {
+        let mut hasher = sha2::Sha256::new();
+        hasher.update(self.public_key().to_bytes());
+        let key_id = Base64UrlSafeNoPadding::encode_to_string(hasher.finalize())?;
+        self.set_key_id(key_id.clone());
+        Ok(key_id)
     }
 }
 

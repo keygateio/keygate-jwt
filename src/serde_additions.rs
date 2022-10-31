@@ -42,7 +42,10 @@ pub mod unix_timestamp {
         time: &Option<UnixTimeStamp>,
         serializer: S,
     ) -> Result<S::Ok, S::Error> {
-        serializer.serialize_u64(time.unwrap().as_secs())
+        match time {
+            Some(time) => serializer.serialize_u64(time.as_secs()),
+            None => serializer.serialize_none(),
+        }
     }
 
     pub fn deserialize<'de, D: Deserializer<'de>>(

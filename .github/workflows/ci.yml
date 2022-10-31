@@ -16,10 +16,10 @@ jobs:
     steps:
       - uses: actions/checkout@v2
       - name: Build
-        run: cargo build --verbose
+        run: cargo build --all-features --verbose
       - name: WASI Build
         run: |
           rustup target add wasm32-wasi
-          cargo build --verbose --target=wasm32-wasi
+          cargo build --all-features --verbose --target=wasm32-wasi
       - name: Run tests
-        run: cargo test --verbose
+        run: cargo test --verbose --all-features

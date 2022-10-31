@@ -174,17 +174,12 @@ pub trait EdDSAPublicKeyLike {
         )
     }
 
-    fn create_key_id(&mut self) -> &str {
+    fn create_key_id(&mut self) -> Result<String, JWTError> {
         let mut hasher = sha2::Sha256::new();
         hasher.update(self.public_key().to_bytes());
-        self.set_key_id(
-            Base64UrlSafeNoPadding::encode_to_string(hasher.finalize())
-                .expect("this cannot happen"),
-        );
-        self.key_id()
-            .as_ref()
-            .map(|x| x.as_str())
-            .expect("this cannot happen")
+        let key_id = Base64UrlSafeNoPadding::encode_to_string(hasher.finalize())?;
+        self.set_key_id(key_id.clone());
+        Ok(key_id)
     }
 }
 
@@ -334,9 +329,11 @@ impl Ed25519PublicKey {
         self
     }
 
-    pub fn sha256_thumbprint(&self) -> String {
+    pub fn sha256_thumbprint(&self) -> Result<String, JWTError> {
         let mut hasher = sha2::Sha256::new();
         hasher.update(self.to_der());
-        Base64UrlSafeNoPadding::encode_to_string(hasher.finalize().as_slice()).unwrap()
+        Ok(Base64UrlSafeNoPadding::encode_to_string(
+            hasher.finalize().as_slice(),
+        )?)
     }
 }

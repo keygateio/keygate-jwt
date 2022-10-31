@@ -190,12 +190,12 @@ pub trait ECDSAP256kPublicKeyLike {
         )
     }
 
-    fn create_key_id(&mut self) -> &str {
-        let mut digest = Sha256::new();
-        digest.update(self.public_key().to_bytes());
-
-        self.set_key_id(Base64UrlSafeNoPadding::encode_to_string(digest.finalize()).unwrap());
-        self.key_id().as_ref().map(|x| x.as_str()).unwrap()
+    fn create_key_id(&mut self) -> Result<String, JWTError> {
+        let mut hasher = sha2::Sha256::new();
+        hasher.update(self.public_key().to_bytes());
+        let key_id = Base64UrlSafeNoPadding::encode_to_string(hasher.finalize())?;
+        self.set_key_id(key_id.clone());
+        Ok(key_id)
     }
 }
 

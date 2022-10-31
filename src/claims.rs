@@ -292,11 +292,11 @@ impl Claims {
     /// Create a new set of claims, without custom data, expiring in
     /// `valid_for`.
     pub fn create(valid_for: Duration) -> JWTClaims<NoCustomClaims> {
-        let now = Some(Clock::now_since_epoch());
+        let now = Clock::now_since_epoch();
         JWTClaims {
-            issued_at: now,
-            expires_at: Some(now.unwrap() + valid_for),
-            invalid_before: now,
+            issued_at: Some(now),
+            expires_at: Some(now + valid_for),
+            invalid_before: Some(now),
             audiences: None,
             issuer: None,
             jwt_id: None,
@@ -311,11 +311,11 @@ impl Claims {
         custom_claims: CustomClaims,
         valid_for: Duration,
     ) -> JWTClaims<CustomClaims> {
-        let now = Some(Clock::now_since_epoch());
+        let now = Clock::now_since_epoch();
         JWTClaims {
-            issued_at: now,
-            expires_at: Some(now.unwrap() + valid_for),
-            invalid_before: now,
+            issued_at: Some(now),
+            expires_at: Some(now + valid_for),
+            invalid_before: Some(now),
             audiences: None,
             issuer: None,
             jwt_id: None,
