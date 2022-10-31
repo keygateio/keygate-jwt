@@ -1,4 +1,13 @@
-pub use anyhow::{anyhow, bail, ensure, Error};
+// pub use anyhow::{anyhow, bail, ensure, JWTError};
+
+#[macro_export]
+macro_rules! ensure {
+    ($cond:expr, $err:expr $(,)?) => {
+        if !$cond {
+            return Err($err);
+        }
+    };
+}
 
 #[derive(Debug, thiserror::Error)]
 pub enum JWTError {
@@ -6,8 +15,6 @@ pub enum JWTError {
     InternalError(String),
     #[error("JWT compact encoding error")]
     CompactEncodingError,
-    #[error("CWT decoding error")]
-    CWTDecodingError,
     #[error("JWT header too large")]
     HeaderTooLarge,
     #[error("JWT algorithm mismatch")]
@@ -62,6 +69,32 @@ pub enum JWTError {
     NotJWT,
     #[error("Token is too long")]
     TokenTooLong,
+
+    #[error(transparent)]
+    Codec(#[from] ct_codecs::Error),
+
+    #[error(transparent)]
+    Serde(#[from] serde_json::Error),
+
+    #[cfg(feature = "eddsa")]
+    #[error(transparent)]
+    Ed25519(#[from] ed25519_compact::Error),
+
+    #[cfg(feature = "rsa")]
+    #[error(transparent)]
+    RSA(#[from] rsa::errors::Error),
+
+    #[cfg(feature = "rsa")]
+    #[error(transparent)]
+    Pkcs8(#[from] rsa::pkcs8::Error),
+
+    #[cfg(feature = "rsa")]
+    #[error(transparent)]
+    Pkcs1(#[from] rsa::pkcs1::Error),
+
+    #[cfg(feature = "rsa")]
+    #[error(transparent)]
+    Spki(#[from] spki::Error),
 }
 
 impl From<&str> for JWTError {
@@ -69,3 +102,5 @@ impl From<&str> for JWTError {
         JWTError::InternalError(e.into())
     }
 }
+
+pub type Error = JWTError;

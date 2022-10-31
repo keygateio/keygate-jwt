@@ -304,15 +304,12 @@
 pub mod algorithms;
 pub mod claims;
 pub mod common;
-#[cfg(feature = "cwt")]
-pub mod cwt_token;
 pub mod token;
 
 mod jwt_header;
 mod serde_additions;
 
 pub mod reexports {
-    pub use anyhow;
     pub use coarsetime;
     pub use ct_codecs;
     pub use rand;
@@ -337,8 +334,6 @@ pub mod prelude {
     pub use crate::algorithms::*;
     pub use crate::claims::*;
     pub use crate::common::*;
-    #[cfg(feature = "cwt")]
-    pub use crate::cwt_token::*;
     pub use crate::token::*;
 
     mod hashset_from_strings {
@@ -547,9 +542,9 @@ MCowBQYDK2VwAyEAyrRjJfTnhMcW5igzYvPirFW5eUgMdKeClGzQhd4qw+Y=
     #[test]
     fn key_metadata() {
         let mut key_pair = Ed25519KeyPair::generate();
-        let thumbprint = key_pair.public_key().sha1_thumbprint();
+        let thumbprint = key_pair.public_key().sha256_thumbprint();
         let key_metadata = KeyMetadata::default()
-            .with_certificate_sha1_thumbprint(&thumbprint)
+            .with_certificate_sha256_thumbprint(&thumbprint)
             .unwrap();
         key_pair.attach_metadata(key_metadata).unwrap();
 
@@ -558,7 +553,7 @@ MCowBQYDK2VwAyEAyrRjJfTnhMcW5igzYvPirFW5eUgMdKeClGzQhd4qw+Y=
 
         let decoded_metadata = Token::decode_metadata(&token).unwrap();
         assert_eq!(
-            decoded_metadata.certificate_sha1_thumbprint(),
+            decoded_metadata.certificate_sha256_thumbprint(),
             Some(thumbprint.as_ref())
         );
         let _ = key_pair

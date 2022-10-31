@@ -3,7 +3,7 @@ use std::collections::HashSet;
 use coarsetime::{Duration, UnixTimeStamp};
 use ct_codecs::{Base64UrlSafeNoPadding, Decoder, Encoder, Hex};
 
-use crate::{claims::DEFAULT_TIME_TOLERANCE_SECS, error::*};
+use crate::{claims::DEFAULT_TIME_TOLERANCE_SECS, ensure, JWTError};
 
 pub const DEFAULT_MAX_TOKEN_LENGTH: usize = 1_000_000;
 
@@ -102,7 +102,7 @@ impl KeyMetadata {
     pub fn with_certificate_sha1_thumbprint(
         mut self,
         certificate_sha1_thumbprint: impl ToString,
-    ) -> Result<Self, Error> {
+    ) -> Result<Self, JWTError> {
         let thumbprint = certificate_sha1_thumbprint.to_string();
         let mut bin = [0u8; 20];
         if thumbprint.len() == 40 {
@@ -126,7 +126,7 @@ impl KeyMetadata {
     pub fn with_certificate_sha256_thumbprint(
         mut self,
         certificate_sha256_thumbprint: impl ToString,
-    ) -> Result<Self, Error> {
+    ) -> Result<Self, JWTError> {
         let thumbprint = certificate_sha256_thumbprint.to_string();
         let mut bin = [0u8; 32];
         if thumbprint.len() == 64 {

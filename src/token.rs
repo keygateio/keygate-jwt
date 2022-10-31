@@ -99,9 +99,9 @@ impl Token {
         jwt_header: &JWTHeader,
         claims: JWTClaims<CustomClaims>,
         authentication_or_signature_fn: AuthenticationOrSignatureFn,
-    ) -> Result<String, Error>
+    ) -> Result<String, JWTError>
     where
-        AuthenticationOrSignatureFn: FnOnce(&str) -> Result<Vec<u8>, Error>,
+        AuthenticationOrSignatureFn: FnOnce(&str) -> Result<Vec<u8>, JWTError>,
     {
         let jwt_header_json = serde_json::to_string(&jwt_header)?;
         let claims_json = serde_json::to_string(&claims)?;
@@ -124,44 +124,54 @@ impl Token {
         token: &str,
         options: Option<VerificationOptions>,
         authentication_or_signature_fn: AuthenticationOrSignatureFn,
-    ) -> Result<JWTClaims<CustomClaims>, Error>
+    ) -> Result<JWTClaims<CustomClaims>, JWTError>
     where
-        AuthenticationOrSignatureFn: FnOnce(&str, &[u8]) -> Result<(), Error>,
+        AuthenticationOrSignatureFn: FnOnce(&str, &[u8]) -> Result<(), JWTError>,
     {
         let options = options.unwrap_or_default();
 
         if let Some(max_token_length) = options.max_token_length {
-            ensure!(token.len() <= max_token_length, JWTError::TokenTooLong);
+            if !(token.len() <= max_token_length) {
+                return Err(JWTError::TokenTooLong);
+            }
         }
 
         let mut parts = token.split('.');
         let jwt_header_b64 = parts.next().ok_or(JWTError::CompactEncodingError)?;
-        ensure!(
-            jwt_header_b64.len() <= MAX_HEADER_LENGTH,
-            JWTError::HeaderTooLarge
-        );
+
+        if !(jwt_header_b64.len() <= MAX_HEADER_LENGTH) {
+            return Err(JWTError::HeaderTooLarge);
+        }
+
         let claims_b64 = parts.next().ok_or(JWTError::CompactEncodingError)?;
         let authentication_tag_b64 = parts.next().ok_or(JWTError::CompactEncodingError)?;
-        ensure!(parts.next().is_none(), JWTError::CompactEncodingError);
+
+        if parts.next().is_some() {
+            return Err(JWTError::CompactEncodingError);
+        }
+
         let jwt_header: JWTHeader = serde_json::from_slice(
             &Base64UrlSafeNoPadding::decode_to_vec(jwt_header_b64, None)?,
         )?;
         if let Some(signature_type) = &jwt_header.signature_type {
             let signature_type_uc = signature_type.to_uppercase();
-            ensure!(
-                signature_type_uc == "JWT" || signature_type_uc.ends_with("+JWT"),
-                JWTError::NotJWT
-            );
+
+            if !(signature_type_uc == "JWT" || signature_type_uc.ends_with("+JWT")) {
+                return Err(JWTError::NotJWT);
+            }
         }
-        ensure!(
-            jwt_header.algorithm == jwt_alg_name,
-            JWTError::AlgorithmMismatch
-        );
+
+        if jwt_header.algorithm != jwt_alg_name {
+            return Err(JWTError::AlgorithmMismatch);
+        }
+
         if let Some(required_key_id) = &options.required_key_id {
             if let Some(key_id) = &jwt_header.key_id {
-                ensure!(key_id == required_key_id, JWTError::KeyIdentifierMismatch);
+                if key_id != required_key_id {
+                    return Err(JWTError::KeyIdentifierMismatch);
+                }
             } else {
-                bail!(JWTError::MissingJWTKeyIdentifier)
+                return Err(JWTError::MissingJWTKeyIdentifier);
             }
         }
         let authentication_tag =
@@ -176,16 +186,18 @@ impl Token {
 
     /// Decode token information that can be usedful prior to signature/tag
     /// verification
-    pub fn decode_metadata(token: &str) -> Result<TokenMetadata, Error> {
+    pub fn decode_metadata(token: &str) -> Result<TokenMetadata, JWTError> {
         let mut parts = token.split('.');
         let jwt_header_b64 = parts.next().ok_or(JWTError::CompactEncodingError)?;
-        ensure!(
-            jwt_header_b64.len() <= MAX_HEADER_LENGTH,
-            JWTError::HeaderTooLarge
-        );
+
+        if !(jwt_header_b64.len() <= MAX_HEADER_LENGTH) {
+            return Err(JWTError::HeaderTooLarge);
+        }
+
         let jwt_header: JWTHeader = serde_json::from_slice(
             &Base64UrlSafeNoPadding::decode_to_vec(jwt_header_b64, None)?,
         )?;
+
         Ok(TokenMetadata { jwt_header })
     }
 }

@@ -8,8 +8,6 @@ use serde::{de::DeserializeOwned, Serialize};
 
 use crate::claims::*;
 use crate::common::*;
-#[cfg(feature = "cwt")]
-use crate::cwt_token::*;
 use crate::error::*;
 use crate::jwt_header::*;
 use crate::token::*;
@@ -25,19 +23,19 @@ impl AsRef<ecdsa::VerifyingKey> for P384PublicKey {
 }
 
 impl P384PublicKey {
-    pub fn from_bytes(raw: &[u8]) -> Result<Self, Error> {
+    pub fn from_bytes(raw: &[u8]) -> Result<Self, JWTError> {
         let p384_pk =
             ecdsa::VerifyingKey::from_sec1_bytes(raw).map_err(|_| JWTError::InvalidPublicKey)?;
         Ok(P384PublicKey(p384_pk))
     }
 
-    pub fn from_der(der: &[u8]) -> Result<Self, Error> {
+    pub fn from_der(der: &[u8]) -> Result<Self, JWTError> {
         let p384_pk = ecdsa::VerifyingKey::from_public_key_der(der)
             .map_err(|_| JWTError::InvalidPublicKey)?;
         Ok(P384PublicKey(p384_pk))
     }
 
-    pub fn from_pem(pem: &str) -> Result<Self, Error> {
+    pub fn from_pem(pem: &str) -> Result<Self, JWTError> {
         let p384_pk = ecdsa::VerifyingKey::from_public_key_pem(pem)
             .map_err(|_| JWTError::InvalidPublicKey)?;
         Ok(P384PublicKey(p384_pk))
@@ -51,7 +49,7 @@ impl P384PublicKey {
         self.0.to_encoded_point(false).as_bytes().to_vec()
     }
 
-    pub fn to_der(&self) -> Result<Vec<u8>, Error> {
+    pub fn to_der(&self) -> Result<Vec<u8>, JWTError> {
         let p384_pk = p384::PublicKey::from(self.0);
         Ok(p384_pk
             .to_public_key_der()
@@ -60,7 +58,7 @@ impl P384PublicKey {
             .to_vec())
     }
 
-    pub fn to_pem(&self) -> Result<String, Error> {
+    pub fn to_pem(&self) -> Result<String, JWTError> {
         let p384_pk = p384::PublicKey::from(self.0);
         Ok(p384_pk
             .to_public_key_pem(Default::default())
@@ -81,7 +79,7 @@ impl AsRef<ecdsa::SigningKey> for P384KeyPair {
 }
 
 impl P384KeyPair {
-    pub fn from_bytes(raw: &[u8]) -> Result<Self, Error> {
+    pub fn from_bytes(raw: &[u8]) -> Result<Self, JWTError> {
         let p384_sk = ecdsa::SigningKey::from_bytes(raw).map_err(|_| JWTError::InvalidKeyPair)?;
         Ok(P384KeyPair {
             p384_sk,
@@ -89,7 +87,7 @@ impl P384KeyPair {
         })
     }
 
-    pub fn from_der(der: &[u8]) -> Result<Self, Error> {
+    pub fn from_der(der: &[u8]) -> Result<Self, JWTError> {
         let p384_sk =
             ecdsa::SigningKey::from_pkcs8_der(der).map_err(|_| JWTError::InvalidKeyPair)?;
         Ok(P384KeyPair {
@@ -98,7 +96,7 @@ impl P384KeyPair {
         })
     }
 
-    pub fn from_pem(pem: &str) -> Result<Self, Error> {
+    pub fn from_pem(pem: &str) -> Result<Self, JWTError> {
         let p384_sk =
             ecdsa::SigningKey::from_pkcs8_pem(pem).map_err(|_| JWTError::InvalidKeyPair)?;
         Ok(P384KeyPair {
@@ -111,7 +109,7 @@ impl P384KeyPair {
         self.p384_sk.to_bytes().to_vec()
     }
 
-    pub fn to_der(&self) -> Result<Vec<u8>, Error> {
+    pub fn to_der(&self) -> Result<Vec<u8>, JWTError> {
         let scalar = NonZeroScalar::from_repr(self.p384_sk.to_bytes());
         if bool::from(scalar.is_none()) {
             return Err(JWTError::InvalidKeyPair.into());
@@ -125,7 +123,7 @@ impl P384KeyPair {
             .to_vec())
     }
 
-    pub fn to_pem(&self) -> Result<String, Error> {
+    pub fn to_pem(&self) -> Result<String, JWTError> {
         let scalar = NonZeroScalar::from_repr(self.p384_sk.to_bytes());
         if bool::from(scalar.is_none()) {
             return Err(JWTError::InvalidKeyPair.into());
@@ -158,12 +156,12 @@ pub trait ECDSAP384KeyPairLike {
     fn key_pair(&self) -> &P384KeyPair;
     fn key_id(&self) -> &Option<String>;
     fn metadata(&self) -> &Option<KeyMetadata>;
-    fn attach_metadata(&mut self, metadata: KeyMetadata) -> Result<(), Error>;
+    fn attach_metadata(&mut self, metadata: KeyMetadata) -> Result<(), JWTError>;
 
     fn sign<CustomClaims: Serialize + DeserializeOwned>(
         &self,
         claims: JWTClaims<CustomClaims>,
-    ) -> Result<String, Error> {
+    ) -> Result<String, JWTError> {
         let jwt_header = JWTHeader::new(Self::jwt_alg_name().to_string(), self.key_id().clone())
             .with_metadata(self.metadata());
         Token::build(&jwt_header, claims, |authenticated| {
@@ -187,32 +185,8 @@ pub trait ECDSAP384PublicKeyLike {
         &self,
         token: &str,
         options: Option<VerificationOptions>,
-    ) -> Result<JWTClaims<CustomClaims>, Error> {
+    ) -> Result<JWTClaims<CustomClaims>, JWTError> {
         Token::verify(
-            Self::jwt_alg_name(),
-            token,
-            options,
-            |authenticated, signature| {
-                let ecdsa_signature = ecdsa::Signature::try_from(signature)
-                    .map_err(|_| JWTError::InvalidSignature)?;
-                let mut digest = hmac_sha512::sha384::Hash::new();
-                digest.update(authenticated.as_bytes());
-                self.public_key()
-                    .as_ref()
-                    .verify_digest(digest, &ecdsa_signature)
-                    .map_err(|_| JWTError::InvalidSignature)?;
-                Ok(())
-            },
-        )
-    }
-
-    #[cfg(feature = "cwt")]
-    fn verify_cwt_token<CustomClaims: Serialize + DeserializeOwned>(
-        &self,
-        token: &str,
-        options: Option<VerificationOptions>,
-    ) -> Result<JWTClaims<NoCustomClaims>, Error> {
-        CWTToken::verify(
             Self::jwt_alg_name(),
             token,
             options,
@@ -269,28 +243,28 @@ impl ECDSAP384KeyPairLike for ES384KeyPair {
         &self.key_pair.metadata
     }
 
-    fn attach_metadata(&mut self, metadata: KeyMetadata) -> Result<(), Error> {
+    fn attach_metadata(&mut self, metadata: KeyMetadata) -> Result<(), JWTError> {
         self.key_pair.metadata = Some(metadata);
         Ok(())
     }
 }
 
 impl ES384KeyPair {
-    pub fn from_bytes(raw: &[u8]) -> Result<Self, Error> {
+    pub fn from_bytes(raw: &[u8]) -> Result<Self, JWTError> {
         Ok(ES384KeyPair {
             key_pair: P384KeyPair::from_bytes(raw)?,
             key_id: None,
         })
     }
 
-    pub fn from_der(der: &[u8]) -> Result<Self, Error> {
+    pub fn from_der(der: &[u8]) -> Result<Self, JWTError> {
         Ok(ES384KeyPair {
             key_pair: P384KeyPair::from_der(der)?,
             key_id: None,
         })
     }
 
-    pub fn from_pem(pem: &str) -> Result<Self, Error> {
+    pub fn from_pem(pem: &str) -> Result<Self, JWTError> {
         Ok(ES384KeyPair {
             key_pair: P384KeyPair::from_pem(pem)?,
             key_id: None,
@@ -301,11 +275,11 @@ impl ES384KeyPair {
         self.key_pair.to_bytes()
     }
 
-    pub fn to_der(&self) -> Result<Vec<u8>, Error> {
+    pub fn to_der(&self) -> Result<Vec<u8>, JWTError> {
         self.key_pair.to_der()
     }
 
-    pub fn to_pem(&self) -> Result<String, Error> {
+    pub fn to_pem(&self) -> Result<String, JWTError> {
         self.key_pair.to_pem()
     }
 
@@ -348,21 +322,21 @@ impl ECDSAP384PublicKeyLike for ES384PublicKey {
 }
 
 impl ES384PublicKey {
-    pub fn from_bytes(raw: &[u8]) -> Result<Self, Error> {
+    pub fn from_bytes(raw: &[u8]) -> Result<Self, JWTError> {
         Ok(ES384PublicKey {
             pk: P384PublicKey::from_bytes(raw)?,
             key_id: None,
         })
     }
 
-    pub fn from_der(der: &[u8]) -> Result<Self, Error> {
+    pub fn from_der(der: &[u8]) -> Result<Self, JWTError> {
         Ok(ES384PublicKey {
             pk: P384PublicKey::from_der(der)?,
             key_id: None,
         })
     }
 
-    pub fn from_pem(pem: &str) -> Result<Self, Error> {
+    pub fn from_pem(pem: &str) -> Result<Self, JWTError> {
         Ok(ES384PublicKey {
             pk: P384PublicKey::from_pem(pem)?,
             key_id: None,
@@ -373,11 +347,11 @@ impl ES384PublicKey {
         self.pk.to_bytes()
     }
 
-    pub fn to_der(&self) -> Result<Vec<u8>, Error> {
+    pub fn to_der(&self) -> Result<Vec<u8>, JWTError> {
         self.pk.to_der()
     }
 
-    pub fn to_pem(&self) -> Result<String, Error> {
+    pub fn to_pem(&self) -> Result<String, JWTError> {
         self.pk.to_pem()
     }
 

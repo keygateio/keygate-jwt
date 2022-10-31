@@ -1,12 +1,9 @@
 use ct_codecs::{Base64UrlSafeNoPadding, Encoder};
-use hmac_sha1_compact::Hash as SHA1;
-use hmac_sha256::Hash as SHA256;
 use serde::{de::DeserializeOwned, Serialize};
+use sha2::Digest;
 
 use crate::claims::*;
 use crate::common::*;
-#[cfg(feature = "cwt")]
-use crate::cwt_token::*;
 use crate::error::*;
 use crate::jwt_header::*;
 use crate::token::*;
@@ -22,21 +19,21 @@ impl AsRef<ed25519_compact::PublicKey> for Edwards25519PublicKey {
 }
 
 impl Edwards25519PublicKey {
-    pub fn from_bytes(raw: &[u8]) -> Result<Self, Error> {
+    pub fn from_bytes(raw: &[u8]) -> Result<Self, JWTError> {
         let ed25519_pk = ed25519_compact::PublicKey::from_slice(raw);
         Ok(Edwards25519PublicKey(
             ed25519_pk.map_err(|_| JWTError::InvalidPublicKey)?,
         ))
     }
 
-    pub fn from_der(der: &[u8]) -> Result<Self, Error> {
+    pub fn from_der(der: &[u8]) -> Result<Self, JWTError> {
         let ed25519_pk = ed25519_compact::PublicKey::from_der(der);
         Ok(Edwards25519PublicKey(
             ed25519_pk.map_err(|_| JWTError::InvalidPublicKey)?,
         ))
     }
 
-    pub fn from_pem(pem: &str) -> Result<Self, Error> {
+    pub fn from_pem(pem: &str) -> Result<Self, JWTError> {
         let ed25519_pk = ed25519_compact::PublicKey::from_pem(pem);
         Ok(Edwards25519PublicKey(
             ed25519_pk.map_err(|_| JWTError::InvalidPublicKey)?,
@@ -70,7 +67,7 @@ impl AsRef<ed25519_compact::KeyPair> for Edwards25519KeyPair {
 }
 
 impl Edwards25519KeyPair {
-    pub fn from_bytes(raw: &[u8]) -> Result<Self, Error> {
+    pub fn from_bytes(raw: &[u8]) -> Result<Self, JWTError> {
         let ed25519_kp = ed25519_compact::KeyPair::from_slice(raw)?;
         Ok(Edwards25519KeyPair {
             ed25519_kp,
@@ -78,7 +75,7 @@ impl Edwards25519KeyPair {
         })
     }
 
-    pub fn from_der(der: &[u8]) -> Result<Self, Error> {
+    pub fn from_der(der: &[u8]) -> Result<Self, JWTError> {
         let ed25519_kp = match ed25519_compact::KeyPair::from_der(der) {
             Ok(kp) => kp,
             Err(_) => ed25519_compact::KeyPair::from_seed(
@@ -91,7 +88,7 @@ impl Edwards25519KeyPair {
         })
     }
 
-    pub fn from_pem(pem: &str) -> Result<Self, Error> {
+    pub fn from_pem(pem: &str) -> Result<Self, JWTError> {
         let ed25519_kp = match ed25519_compact::KeyPair::from_pem(pem) {
             Ok(kp) => kp,
             Err(_) => ed25519_compact::KeyPair::from_seed(
@@ -135,12 +132,12 @@ pub trait EdDSAKeyPairLike {
     fn key_pair(&self) -> &Edwards25519KeyPair;
     fn key_id(&self) -> &Option<String>;
     fn metadata(&self) -> &Option<KeyMetadata>;
-    fn attach_metadata(&mut self, metadata: KeyMetadata) -> Result<(), Error>;
+    fn attach_metadata(&mut self, metadata: KeyMetadata) -> Result<(), JWTError>;
 
     fn sign<CustomClaims: Serialize + DeserializeOwned>(
         &self,
         claims: JWTClaims<CustomClaims>,
-    ) -> Result<String, Error> {
+    ) -> Result<String, JWTError> {
         let jwt_header = JWTHeader::new(Self::jwt_alg_name().to_string(), self.key_id().clone())
             .with_metadata(self.metadata());
         Token::build(&jwt_header, claims, |authenticated| {
@@ -161,7 +158,7 @@ pub trait EdDSAPublicKeyLike {
         &self,
         token: &str,
         options: Option<VerificationOptions>,
-    ) -> Result<JWTClaims<CustomClaims>, Error> {
+    ) -> Result<JWTClaims<CustomClaims>, JWTError> {
         Token::verify(
             Self::jwt_alg_name(),
             token,
@@ -177,35 +174,17 @@ pub trait EdDSAPublicKeyLike {
         )
     }
 
-    #[cfg(feature = "cwt")]
-    fn verify_cwt_token<CustomClaims: Serialize + DeserializeOwned>(
-        &self,
-        token: &[u8],
-        options: Option<VerificationOptions>,
-    ) -> Result<JWTClaims<NoCustomClaims>, Error> {
-        CWTToken::verify(
-            Self::jwt_alg_name(),
-            token,
-            options,
-            |authenticated, signature| {
-                let ed25519_signature = ed25519_compact::Signature::from_slice(signature)?;
-                self.public_key()
-                    .as_ref()
-                    .verify(authenticated, &ed25519_signature)
-                    .map_err(|_| JWTError::InvalidSignature)?;
-                Ok(())
-            },
-        )
-    }
-
     fn create_key_id(&mut self) -> &str {
+        let mut hasher = sha2::Sha256::new();
+        hasher.update(self.public_key().to_bytes());
         self.set_key_id(
-            Base64UrlSafeNoPadding::encode_to_string(hmac_sha256::Hash::hash(
-                &self.public_key().to_bytes(),
-            ))
-            .unwrap(),
+            Base64UrlSafeNoPadding::encode_to_string(hasher.finalize())
+                .expect("this cannot happen"),
         );
-        self.key_id().as_ref().map(|x| x.as_str()).unwrap()
+        self.key_id()
+            .as_ref()
+            .map(|x| x.as_str())
+            .expect("this cannot happen")
     }
 }
 
@@ -238,28 +217,28 @@ impl EdDSAKeyPairLike for Ed25519KeyPair {
         &self.key_pair.metadata
     }
 
-    fn attach_metadata(&mut self, metadata: KeyMetadata) -> Result<(), Error> {
+    fn attach_metadata(&mut self, metadata: KeyMetadata) -> Result<(), JWTError> {
         self.key_pair.metadata = Some(metadata);
         Ok(())
     }
 }
 
 impl Ed25519KeyPair {
-    pub fn from_bytes(raw: &[u8]) -> Result<Self, Error> {
+    pub fn from_bytes(raw: &[u8]) -> Result<Self, JWTError> {
         Ok(Ed25519KeyPair {
             key_pair: Edwards25519KeyPair::from_bytes(raw)?,
             key_id: None,
         })
     }
 
-    pub fn from_der(der: &[u8]) -> Result<Self, Error> {
+    pub fn from_der(der: &[u8]) -> Result<Self, JWTError> {
         Ok(Ed25519KeyPair {
             key_pair: Edwards25519KeyPair::from_der(der)?,
             key_id: None,
         })
     }
 
-    pub fn from_pem(pem: &str) -> Result<Self, Error> {
+    pub fn from_pem(pem: &str) -> Result<Self, JWTError> {
         Ok(Ed25519KeyPair {
             key_pair: Edwards25519KeyPair::from_pem(pem)?,
             key_id: None,
@@ -317,21 +296,21 @@ impl EdDSAPublicKeyLike for Ed25519PublicKey {
 }
 
 impl Ed25519PublicKey {
-    pub fn from_bytes(raw: &[u8]) -> Result<Self, Error> {
+    pub fn from_bytes(raw: &[u8]) -> Result<Self, JWTError> {
         Ok(Ed25519PublicKey {
             pk: Edwards25519PublicKey::from_bytes(raw)?,
             key_id: None,
         })
     }
 
-    pub fn from_der(der: &[u8]) -> Result<Self, Error> {
+    pub fn from_der(der: &[u8]) -> Result<Self, JWTError> {
         Ok(Ed25519PublicKey {
             pk: Edwards25519PublicKey::from_der(der)?,
             key_id: None,
         })
     }
 
-    pub fn from_pem(pem: &str) -> Result<Self, Error> {
+    pub fn from_pem(pem: &str) -> Result<Self, JWTError> {
         Ok(Ed25519PublicKey {
             pk: Edwards25519PublicKey::from_pem(pem)?,
             key_id: None,
@@ -355,11 +334,9 @@ impl Ed25519PublicKey {
         self
     }
 
-    pub fn sha1_thumbprint(&self) -> String {
-        Base64UrlSafeNoPadding::encode_to_string(SHA1::hash(&self.pk.to_der())).unwrap()
-    }
-
     pub fn sha256_thumbprint(&self) -> String {
-        Base64UrlSafeNoPadding::encode_to_string(SHA256::hash(&self.pk.to_der())).unwrap()
+        let mut hasher = sha2::Sha256::new();
+        hasher.update(self.to_der());
+        Base64UrlSafeNoPadding::encode_to_string(hasher.finalize().as_slice()).unwrap()
     }
 }

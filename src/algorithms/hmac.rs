@@ -6,8 +6,7 @@ use zeroize::Zeroize;
 
 use crate::claims::*;
 use crate::common::*;
-#[cfg(feature = "cwt")]
-use crate::cwt_token::*;
+use crate::ensure;
 use crate::error::*;
 use crate::jwt_header::*;
 use crate::token::*;
@@ -59,13 +58,13 @@ pub trait MACLike {
     fn key_id(&self) -> &Option<String>;
     fn set_key_id(&mut self, key_id: String);
     fn metadata(&self) -> &Option<KeyMetadata>;
-    fn attach_metadata(&mut self, metadata: KeyMetadata) -> Result<(), Error>;
+    fn attach_metadata(&mut self, metadata: KeyMetadata) -> Result<(), JWTError>;
     fn authentication_tag(&self, authenticated: &str) -> Vec<u8>;
 
     fn authenticate<CustomClaims: Serialize + DeserializeOwned>(
         &self,
         claims: JWTClaims<CustomClaims>,
-    ) -> Result<String, Error> {
+    ) -> Result<String, JWTError> {
         let jwt_header = JWTHeader::new(Self::jwt_alg_name().to_string(), self.key_id().clone())
             .with_metadata(self.metadata());
         Token::build(&jwt_header, claims, |authenticated| {
@@ -77,28 +76,8 @@ pub trait MACLike {
         &self,
         token: &str,
         options: Option<VerificationOptions>,
-    ) -> Result<JWTClaims<CustomClaims>, Error> {
+    ) -> Result<JWTClaims<CustomClaims>, JWTError> {
         Token::verify(
-            Self::jwt_alg_name(),
-            token,
-            options,
-            |authenticated, authentication_tag| {
-                ensure!(
-                    timingsafe_eq(&self.authentication_tag(authenticated), authentication_tag),
-                    JWTError::InvalidAuthenticationTag
-                );
-                Ok(())
-            },
-        )
-    }
-
-    #[cfg(feature = "cwt")]
-    fn verify_cwt_token(
-        &self,
-        token: impl AsRef<[u8]>,
-        options: Option<VerificationOptions>,
-    ) -> Result<JWTClaims<NoCustomClaims>, Error> {
-        CWTToken::verify(
             Self::jwt_alg_name(),
             token,
             options,
@@ -150,7 +129,7 @@ impl MACLike for HS256Key {
         &self.key.metadata
     }
 
-    fn attach_metadata(&mut self, metadata: KeyMetadata) -> Result<(), Error> {
+    fn attach_metadata(&mut self, metadata: KeyMetadata) -> Result<(), JWTError> {
         self.key.metadata = Some(metadata);
         Ok(())
     }
@@ -212,7 +191,7 @@ impl MACLike for HS512Key {
         &self.key.metadata
     }
 
-    fn attach_metadata(&mut self, metadata: KeyMetadata) -> Result<(), Error> {
+    fn attach_metadata(&mut self, metadata: KeyMetadata) -> Result<(), JWTError> {
         self.key.metadata = Some(metadata);
         Ok(())
     }
@@ -274,7 +253,7 @@ impl MACLike for HS384Key {
         &self.key.metadata
     }
 
-    fn attach_metadata(&mut self, metadata: KeyMetadata) -> Result<(), Error> {
+    fn attach_metadata(&mut self, metadata: KeyMetadata) -> Result<(), JWTError> {
         self.key.metadata = Some(metadata);
         Ok(())
     }

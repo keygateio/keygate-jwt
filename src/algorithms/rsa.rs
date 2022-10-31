@@ -14,8 +14,6 @@ use spki::{DecodePublicKey as _, EncodePublicKey as _};
 
 use crate::claims::*;
 use crate::common::*;
-#[cfg(feature = "cwt")]
-use crate::cwt_token::*;
 use crate::error::*;
 use crate::jwt_header::*;
 use crate::token::*;
@@ -36,34 +34,34 @@ pub struct RSAPublicKeyComponents {
 }
 
 impl RSAPublicKey {
-    pub fn from_der(der: &[u8]) -> Result<Self, Error> {
+    pub fn from_der(der: &[u8]) -> Result<Self, JWTError> {
         let rsa_pk = rsa::RsaPublicKey::from_public_key_der(der)
             .or_else(|_| rsa::RsaPublicKey::from_pkcs1_der(der))?;
         Ok(RSAPublicKey(rsa_pk))
     }
 
-    pub fn from_pem(pem: &str) -> Result<Self, Error> {
+    pub fn from_pem(pem: &str) -> Result<Self, JWTError> {
         let pem = pem.trim();
         let rsa_pk = rsa::RsaPublicKey::from_public_key_pem(pem)
             .or_else(|_| rsa::RsaPublicKey::from_pkcs1_pem(pem))?;
         Ok(RSAPublicKey(rsa_pk))
     }
 
-    pub fn from_components(n: &[u8], e: &[u8]) -> Result<Self, Error> {
+    pub fn from_components(n: &[u8], e: &[u8]) -> Result<Self, JWTError> {
         let n = BigUint::from_bytes_be(n);
         let e = BigUint::from_bytes_be(e);
         let rsa_pk = rsa::RsaPublicKey::new(n, e)?;
         Ok(RSAPublicKey(rsa_pk))
     }
 
-    pub fn to_der(&self) -> Result<Vec<u8>, Error> {
+    pub fn to_der(&self) -> Result<Vec<u8>, JWTError> {
         self.0
             .to_public_key_der()
             .map_err(Into::into)
             .map(|x| x.as_ref().to_vec())
     }
 
-    pub fn to_pem(&self) -> Result<String, Error> {
+    pub fn to_pem(&self) -> Result<String, JWTError> {
         self.0
             .to_public_key_pem(Default::default())
             .map_err(Into::into)
@@ -90,7 +88,7 @@ impl AsRef<rsa::RsaPrivateKey> for RSAKeyPair {
 }
 
 impl RSAKeyPair {
-    pub fn from_der(der: &[u8]) -> Result<Self, Error> {
+    pub fn from_der(der: &[u8]) -> Result<Self, JWTError> {
         let mut rsa_sk = rsa::RsaPrivateKey::from_pkcs8_der(der)
             .or_else(|_| rsa::RsaPrivateKey::from_pkcs1_der(der))?;
         rsa_sk.validate()?;
@@ -101,7 +99,7 @@ impl RSAKeyPair {
         })
     }
 
-    pub fn from_pem(pem: &str) -> Result<Self, Error> {
+    pub fn from_pem(pem: &str) -> Result<Self, JWTError> {
         let pem = pem.trim();
         let mut rsa_sk = rsa::RsaPrivateKey::from_pkcs8_pem(pem)
             .or_else(|_| rsa::RsaPrivateKey::from_pkcs1_pem(pem))?;
@@ -113,14 +111,14 @@ impl RSAKeyPair {
         })
     }
 
-    pub fn to_der(&self) -> Result<Vec<u8>, Error> {
+    pub fn to_der(&self) -> Result<Vec<u8>, JWTError> {
         self.rsa_sk
             .to_pkcs8_der()
             .map_err(Into::into)
             .map(|x| mem::take(x.to_bytes().as_mut()))
     }
 
-    pub fn to_pem(&self) -> Result<String, Error> {
+    pub fn to_pem(&self) -> Result<String, JWTError> {
         self.rsa_sk
             .to_pkcs8_pem(Default::default())
             .map_err(Into::into)
@@ -132,10 +130,10 @@ impl RSAKeyPair {
         RSAPublicKey(rsa_pk)
     }
 
-    pub fn generate(modulus_bits: usize) -> Result<Self, Error> {
+    pub fn generate(modulus_bits: usize) -> Result<Self, JWTError> {
         match modulus_bits {
             2048 | 3072 | 4096 => {}
-            _ => bail!(JWTError::UnsupportedRSAModulus),
+            _ => return Err(JWTError::UnsupportedRSAModulus),
         };
         let mut rng = rand::thread_rng();
         let rsa_sk = rsa::RsaPrivateKey::new(&mut rng, modulus_bits)?;
@@ -151,14 +149,14 @@ pub trait RSAKeyPairLike {
     fn key_pair(&self) -> &RSAKeyPair;
     fn key_id(&self) -> &Option<String>;
     fn metadata(&self) -> &Option<KeyMetadata>;
-    fn attach_metadata(&mut self, metadata: KeyMetadata) -> Result<(), Error>;
+    fn attach_metadata(&mut self, metadata: KeyMetadata) -> Result<(), JWTError>;
     fn hash(message: &[u8]) -> Vec<u8>;
     fn padding_scheme(&self) -> rsa::PaddingScheme;
 
     fn sign<CustomClaims: Serialize + DeserializeOwned>(
         &self,
         claims: JWTClaims<CustomClaims>,
-    ) -> Result<String, Error> {
+    ) -> Result<String, JWTError> {
         let jwt_header = JWTHeader::new(Self::jwt_alg_name().to_string(), self.key_id().clone())
             .with_metadata(self.metadata());
         Token::build(&jwt_header, claims, |authenticated| {
@@ -185,29 +183,8 @@ pub trait RSAPublicKeyLike {
         &self,
         token: &str,
         options: Option<VerificationOptions>,
-    ) -> Result<JWTClaims<CustomClaims>, Error> {
+    ) -> Result<JWTClaims<CustomClaims>, JWTError> {
         Token::verify(
-            Self::jwt_alg_name(),
-            token,
-            options,
-            |authenticated, signature| {
-                let digest = Self::hash(authenticated.as_bytes());
-                self.public_key()
-                    .as_ref()
-                    .verify(self.padding_scheme(), &digest, signature)
-                    .map_err(|_| JWTError::InvalidSignature)?;
-                Ok(())
-            },
-        )
-    }
-
-    #[cfg(feature = "cwt")]
-    fn verify_cwt_token<CustomClaims: Serialize + DeserializeOwned>(
-        &self,
-        token: &[u8],
-        options: Option<VerificationOptions>,
-    ) -> Result<JWTClaims<NoCustomClaims>, Error> {
-        CWTToken::verify(
             Self::jwt_alg_name(),
             token,
             options,
@@ -252,7 +229,7 @@ impl RSAKeyPairLike for RS256KeyPair {
         &self.key_pair.metadata
     }
 
-    fn attach_metadata(&mut self, metadata: KeyMetadata) -> Result<(), Error> {
+    fn attach_metadata(&mut self, metadata: KeyMetadata) -> Result<(), JWTError> {
         self.key_pair.metadata = Some(metadata);
         Ok(())
     }
@@ -267,25 +244,25 @@ impl RSAKeyPairLike for RS256KeyPair {
 }
 
 impl RS256KeyPair {
-    pub fn from_der(der: &[u8]) -> Result<Self, Error> {
+    pub fn from_der(der: &[u8]) -> Result<Self, JWTError> {
         Ok(RS256KeyPair {
             key_pair: RSAKeyPair::from_der(der)?,
             key_id: None,
         })
     }
 
-    pub fn from_pem(pem: &str) -> Result<Self, Error> {
+    pub fn from_pem(pem: &str) -> Result<Self, JWTError> {
         Ok(RS256KeyPair {
             key_pair: RSAKeyPair::from_pem(pem)?,
             key_id: None,
         })
     }
 
-    pub fn to_der(&self) -> Result<Vec<u8>, Error> {
+    pub fn to_der(&self) -> Result<Vec<u8>, JWTError> {
         self.key_pair.to_der()
     }
 
-    pub fn to_pem(&self) -> Result<String, Error> {
+    pub fn to_pem(&self) -> Result<String, JWTError> {
         self.key_pair.to_pem()
     }
 
@@ -296,7 +273,7 @@ impl RS256KeyPair {
         }
     }
 
-    pub fn generate(modulus_bits: usize) -> Result<Self, Error> {
+    pub fn generate(modulus_bits: usize) -> Result<Self, JWTError> {
         Ok(RS256KeyPair {
             key_pair: RSAKeyPair::generate(modulus_bits)?,
             key_id: None,
@@ -336,32 +313,32 @@ impl RSAPublicKeyLike for RS256PublicKey {
 }
 
 impl RS256PublicKey {
-    pub fn from_der(der: &[u8]) -> Result<Self, Error> {
+    pub fn from_der(der: &[u8]) -> Result<Self, JWTError> {
         Ok(RS256PublicKey {
             pk: RSAPublicKey::from_der(der)?,
             key_id: None,
         })
     }
 
-    pub fn from_pem(pem: &str) -> Result<Self, Error> {
+    pub fn from_pem(pem: &str) -> Result<Self, JWTError> {
         Ok(RS256PublicKey {
             pk: RSAPublicKey::from_pem(pem)?,
             key_id: None,
         })
     }
 
-    pub fn from_components(n: &[u8], e: &[u8]) -> Result<Self, Error> {
+    pub fn from_components(n: &[u8], e: &[u8]) -> Result<Self, JWTError> {
         Ok(RS256PublicKey {
             pk: RSAPublicKey::from_components(n, e)?,
             key_id: None,
         })
     }
 
-    pub fn to_der(&self) -> Result<Vec<u8>, Error> {
+    pub fn to_der(&self) -> Result<Vec<u8>, JWTError> {
         self.pk.to_der()
     }
 
-    pub fn to_pem(&self) -> Result<String, Error> {
+    pub fn to_pem(&self) -> Result<String, JWTError> {
         self.pk.to_pem()
     }
 
@@ -414,7 +391,7 @@ impl RSAKeyPairLike for RS512KeyPair {
         &self.key_pair.metadata
     }
 
-    fn attach_metadata(&mut self, metadata: KeyMetadata) -> Result<(), Error> {
+    fn attach_metadata(&mut self, metadata: KeyMetadata) -> Result<(), JWTError> {
         self.key_pair.metadata = Some(metadata);
         Ok(())
     }
@@ -429,25 +406,25 @@ impl RSAKeyPairLike for RS512KeyPair {
 }
 
 impl RS512KeyPair {
-    pub fn from_der(der: &[u8]) -> Result<Self, Error> {
+    pub fn from_der(der: &[u8]) -> Result<Self, JWTError> {
         Ok(RS512KeyPair {
             key_pair: RSAKeyPair::from_der(der)?,
             key_id: None,
         })
     }
 
-    pub fn from_pem(pem: &str) -> Result<Self, Error> {
+    pub fn from_pem(pem: &str) -> Result<Self, JWTError> {
         Ok(RS512KeyPair {
             key_pair: RSAKeyPair::from_pem(pem)?,
             key_id: None,
         })
     }
 
-    pub fn to_der(&self) -> Result<Vec<u8>, Error> {
+    pub fn to_der(&self) -> Result<Vec<u8>, JWTError> {
         self.key_pair.to_der()
     }
 
-    pub fn to_pem(&self) -> Result<String, Error> {
+    pub fn to_pem(&self) -> Result<String, JWTError> {
         self.key_pair.to_pem()
     }
 
@@ -458,7 +435,7 @@ impl RS512KeyPair {
         }
     }
 
-    pub fn generate(modulus_bits: usize) -> Result<Self, Error> {
+    pub fn generate(modulus_bits: usize) -> Result<Self, JWTError> {
         Ok(RS512KeyPair {
             key_pair: RSAKeyPair::generate(modulus_bits)?,
             key_id: None,
@@ -498,32 +475,32 @@ impl RSAPublicKeyLike for RS512PublicKey {
 }
 
 impl RS512PublicKey {
-    pub fn from_der(der: &[u8]) -> Result<Self, Error> {
+    pub fn from_der(der: &[u8]) -> Result<Self, JWTError> {
         Ok(RS512PublicKey {
             pk: RSAPublicKey::from_der(der)?,
             key_id: None,
         })
     }
 
-    pub fn from_pem(pem: &str) -> Result<Self, Error> {
+    pub fn from_pem(pem: &str) -> Result<Self, JWTError> {
         Ok(RS512PublicKey {
             pk: RSAPublicKey::from_pem(pem)?,
             key_id: None,
         })
     }
 
-    pub fn from_components(n: &[u8], e: &[u8]) -> Result<Self, Error> {
+    pub fn from_components(n: &[u8], e: &[u8]) -> Result<Self, JWTError> {
         Ok(RS512PublicKey {
             pk: RSAPublicKey::from_components(n, e)?,
             key_id: None,
         })
     }
 
-    pub fn to_der(&self) -> Result<Vec<u8>, Error> {
+    pub fn to_der(&self) -> Result<Vec<u8>, JWTError> {
         self.pk.to_der()
     }
 
-    pub fn to_pem(&self) -> Result<String, Error> {
+    pub fn to_pem(&self) -> Result<String, JWTError> {
         self.pk.to_pem()
     }
 
@@ -576,7 +553,7 @@ impl RSAKeyPairLike for RS384KeyPair {
         &self.key_pair.metadata
     }
 
-    fn attach_metadata(&mut self, metadata: KeyMetadata) -> Result<(), Error> {
+    fn attach_metadata(&mut self, metadata: KeyMetadata) -> Result<(), JWTError> {
         self.key_pair.metadata = Some(metadata);
         Ok(())
     }
@@ -591,25 +568,25 @@ impl RSAKeyPairLike for RS384KeyPair {
 }
 
 impl RS384KeyPair {
-    pub fn from_der(der: &[u8]) -> Result<Self, Error> {
+    pub fn from_der(der: &[u8]) -> Result<Self, JWTError> {
         Ok(RS384KeyPair {
             key_pair: RSAKeyPair::from_der(der)?,
             key_id: None,
         })
     }
 
-    pub fn from_pem(pem: &str) -> Result<Self, Error> {
+    pub fn from_pem(pem: &str) -> Result<Self, JWTError> {
         Ok(RS384KeyPair {
             key_pair: RSAKeyPair::from_pem(pem)?,
             key_id: None,
         })
     }
 
-    pub fn to_der(&self) -> Result<Vec<u8>, Error> {
+    pub fn to_der(&self) -> Result<Vec<u8>, JWTError> {
         self.key_pair.to_der()
     }
 
-    pub fn to_pem(&self) -> Result<String, Error> {
+    pub fn to_pem(&self) -> Result<String, JWTError> {
         self.key_pair.to_pem()
     }
 
@@ -620,7 +597,7 @@ impl RS384KeyPair {
         }
     }
 
-    pub fn generate(modulus_bits: usize) -> Result<Self, Error> {
+    pub fn generate(modulus_bits: usize) -> Result<Self, JWTError> {
         Ok(RS384KeyPair {
             key_pair: RSAKeyPair::generate(modulus_bits)?,
             key_id: None,
@@ -660,32 +637,32 @@ impl RSAPublicKeyLike for RS384PublicKey {
 }
 
 impl RS384PublicKey {
-    pub fn from_der(der: &[u8]) -> Result<Self, Error> {
+    pub fn from_der(der: &[u8]) -> Result<Self, JWTError> {
         Ok(RS384PublicKey {
             pk: RSAPublicKey::from_der(der)?,
             key_id: None,
         })
     }
 
-    pub fn from_pem(pem: &str) -> Result<Self, Error> {
+    pub fn from_pem(pem: &str) -> Result<Self, JWTError> {
         Ok(RS384PublicKey {
             pk: RSAPublicKey::from_pem(pem)?,
             key_id: None,
         })
     }
 
-    pub fn from_components(n: &[u8], e: &[u8]) -> Result<Self, Error> {
+    pub fn from_components(n: &[u8], e: &[u8]) -> Result<Self, JWTError> {
         Ok(RS384PublicKey {
             pk: RSAPublicKey::from_components(n, e)?,
             key_id: None,
         })
     }
 
-    pub fn to_der(&self) -> Result<Vec<u8>, Error> {
+    pub fn to_der(&self) -> Result<Vec<u8>, JWTError> {
         self.pk.to_der()
     }
 
-    pub fn to_pem(&self) -> Result<String, Error> {
+    pub fn to_pem(&self) -> Result<String, JWTError> {
         self.pk.to_pem()
     }
 
@@ -738,7 +715,7 @@ impl RSAKeyPairLike for PS256KeyPair {
         &self.key_pair.metadata
     }
 
-    fn attach_metadata(&mut self, metadata: KeyMetadata) -> Result<(), Error> {
+    fn attach_metadata(&mut self, metadata: KeyMetadata) -> Result<(), JWTError> {
         self.key_pair.metadata = Some(metadata);
         Ok(())
     }
@@ -753,25 +730,25 @@ impl RSAKeyPairLike for PS256KeyPair {
 }
 
 impl PS256KeyPair {
-    pub fn from_der(der: &[u8]) -> Result<Self, Error> {
+    pub fn from_der(der: &[u8]) -> Result<Self, JWTError> {
         Ok(PS256KeyPair {
             key_pair: RSAKeyPair::from_der(der)?,
             key_id: None,
         })
     }
 
-    pub fn from_pem(pem: &str) -> Result<Self, Error> {
+    pub fn from_pem(pem: &str) -> Result<Self, JWTError> {
         Ok(PS256KeyPair {
             key_pair: RSAKeyPair::from_pem(pem)?,
             key_id: None,
         })
     }
 
-    pub fn to_der(&self) -> Result<Vec<u8>, Error> {
+    pub fn to_der(&self) -> Result<Vec<u8>, JWTError> {
         self.key_pair.to_der()
     }
 
-    pub fn to_pem(&self) -> Result<String, Error> {
+    pub fn to_pem(&self) -> Result<String, JWTError> {
         self.key_pair.to_pem()
     }
 
@@ -782,7 +759,7 @@ impl PS256KeyPair {
         }
     }
 
-    pub fn generate(modulus_bits: usize) -> Result<Self, Error> {
+    pub fn generate(modulus_bits: usize) -> Result<Self, JWTError> {
         Ok(PS256KeyPair {
             key_pair: RSAKeyPair::generate(modulus_bits)?,
             key_id: None,
@@ -822,32 +799,32 @@ impl RSAPublicKeyLike for PS256PublicKey {
 }
 
 impl PS256PublicKey {
-    pub fn from_der(der: &[u8]) -> Result<Self, Error> {
+    pub fn from_der(der: &[u8]) -> Result<Self, JWTError> {
         Ok(PS256PublicKey {
             pk: RSAPublicKey::from_der(der)?,
             key_id: None,
         })
     }
 
-    pub fn from_pem(pem: &str) -> Result<Self, Error> {
+    pub fn from_pem(pem: &str) -> Result<Self, JWTError> {
         Ok(PS256PublicKey {
             pk: RSAPublicKey::from_pem(pem)?,
             key_id: None,
         })
     }
 
-    pub fn from_components(n: &[u8], e: &[u8]) -> Result<Self, Error> {
+    pub fn from_components(n: &[u8], e: &[u8]) -> Result<Self, JWTError> {
         Ok(PS256PublicKey {
             pk: RSAPublicKey::from_components(n, e)?,
             key_id: None,
         })
     }
 
-    pub fn to_der(&self) -> Result<Vec<u8>, Error> {
+    pub fn to_der(&self) -> Result<Vec<u8>, JWTError> {
         self.pk.to_der()
     }
 
-    pub fn to_pem(&self) -> Result<String, Error> {
+    pub fn to_pem(&self) -> Result<String, JWTError> {
         self.pk.to_pem()
     }
 
@@ -892,7 +869,7 @@ impl RSAKeyPairLike for PS512KeyPair {
         &self.key_pair.metadata
     }
 
-    fn attach_metadata(&mut self, metadata: KeyMetadata) -> Result<(), Error> {
+    fn attach_metadata(&mut self, metadata: KeyMetadata) -> Result<(), JWTError> {
         self.key_pair.metadata = Some(metadata);
         Ok(())
     }
@@ -907,25 +884,25 @@ impl RSAKeyPairLike for PS512KeyPair {
 }
 
 impl PS512KeyPair {
-    pub fn from_der(der: &[u8]) -> Result<Self, Error> {
+    pub fn from_der(der: &[u8]) -> Result<Self, JWTError> {
         Ok(PS512KeyPair {
             key_pair: RSAKeyPair::from_der(der)?,
             key_id: None,
         })
     }
 
-    pub fn from_pem(pem: &str) -> Result<Self, Error> {
+    pub fn from_pem(pem: &str) -> Result<Self, JWTError> {
         Ok(PS512KeyPair {
             key_pair: RSAKeyPair::from_pem(pem)?,
             key_id: None,
         })
     }
 
-    pub fn to_der(&self) -> Result<Vec<u8>, Error> {
+    pub fn to_der(&self) -> Result<Vec<u8>, JWTError> {
         self.key_pair.to_der()
     }
 
-    pub fn to_pem(&self) -> Result<String, Error> {
+    pub fn to_pem(&self) -> Result<String, JWTError> {
         self.key_pair.to_pem()
     }
 
@@ -936,7 +913,7 @@ impl PS512KeyPair {
         }
     }
 
-    pub fn generate(modulus_bits: usize) -> Result<Self, Error> {
+    pub fn generate(modulus_bits: usize) -> Result<Self, JWTError> {
         Ok(PS512KeyPair {
             key_pair: RSAKeyPair::generate(modulus_bits)?,
             key_id: None,
@@ -976,32 +953,32 @@ impl RSAPublicKeyLike for PS512PublicKey {
 }
 
 impl PS512PublicKey {
-    pub fn from_der(der: &[u8]) -> Result<Self, Error> {
+    pub fn from_der(der: &[u8]) -> Result<Self, JWTError> {
         Ok(PS512PublicKey {
             pk: RSAPublicKey::from_der(der)?,
             key_id: None,
         })
     }
 
-    pub fn from_pem(pem: &str) -> Result<Self, Error> {
+    pub fn from_pem(pem: &str) -> Result<Self, JWTError> {
         Ok(PS512PublicKey {
             pk: RSAPublicKey::from_pem(pem)?,
             key_id: None,
         })
     }
 
-    pub fn from_components(n: &[u8], e: &[u8]) -> Result<Self, Error> {
+    pub fn from_components(n: &[u8], e: &[u8]) -> Result<Self, JWTError> {
         Ok(PS512PublicKey {
             pk: RSAPublicKey::from_components(n, e)?,
             key_id: None,
         })
     }
 
-    pub fn to_der(&self) -> Result<Vec<u8>, Error> {
+    pub fn to_der(&self) -> Result<Vec<u8>, JWTError> {
         self.pk.to_der()
     }
 
-    pub fn to_pem(&self) -> Result<String, Error> {
+    pub fn to_pem(&self) -> Result<String, JWTError> {
         self.pk.to_pem()
     }
 
@@ -1054,7 +1031,7 @@ impl RSAKeyPairLike for PS384KeyPair {
         &self.key_pair.metadata
     }
 
-    fn attach_metadata(&mut self, metadata: KeyMetadata) -> Result<(), Error> {
+    fn attach_metadata(&mut self, metadata: KeyMetadata) -> Result<(), JWTError> {
         self.key_pair.metadata = Some(metadata);
         Ok(())
     }
@@ -1069,25 +1046,25 @@ impl RSAKeyPairLike for PS384KeyPair {
 }
 
 impl PS384KeyPair {
-    pub fn from_der(der: &[u8]) -> Result<Self, Error> {
+    pub fn from_der(der: &[u8]) -> Result<Self, JWTError> {
         Ok(PS384KeyPair {
             key_pair: RSAKeyPair::from_der(der)?,
             key_id: None,
         })
     }
 
-    pub fn from_pem(pem: &str) -> Result<Self, Error> {
+    pub fn from_pem(pem: &str) -> Result<Self, JWTError> {
         Ok(PS384KeyPair {
             key_pair: RSAKeyPair::from_pem(pem)?,
             key_id: None,
         })
     }
 
-    pub fn to_der(&self) -> Result<Vec<u8>, Error> {
+    pub fn to_der(&self) -> Result<Vec<u8>, JWTError> {
         self.key_pair.to_der()
     }
 
-    pub fn to_pem(&self) -> Result<String, Error> {
+    pub fn to_pem(&self) -> Result<String, JWTError> {
         self.key_pair.to_pem()
     }
 
@@ -1098,7 +1075,7 @@ impl PS384KeyPair {
         }
     }
 
-    pub fn generate(modulus_bits: usize) -> Result<Self, Error> {
+    pub fn generate(modulus_bits: usize) -> Result<Self, JWTError> {
         Ok(PS384KeyPair {
             key_pair: RSAKeyPair::generate(modulus_bits)?,
             key_id: None,
@@ -1138,32 +1115,32 @@ impl RSAPublicKeyLike for PS384PublicKey {
 }
 
 impl PS384PublicKey {
-    pub fn from_der(der: &[u8]) -> Result<Self, Error> {
+    pub fn from_der(der: &[u8]) -> Result<Self, JWTError> {
         Ok(PS384PublicKey {
             pk: RSAPublicKey::from_der(der)?,
             key_id: None,
         })
     }
 
-    pub fn from_pem(pem: &str) -> Result<Self, Error> {
+    pub fn from_pem(pem: &str) -> Result<Self, JWTError> {
         Ok(PS384PublicKey {
             pk: RSAPublicKey::from_pem(pem)?,
             key_id: None,
         })
     }
 
-    pub fn from_components(n: &[u8], e: &[u8]) -> Result<Self, Error> {
+    pub fn from_components(n: &[u8], e: &[u8]) -> Result<Self, JWTError> {
         Ok(PS384PublicKey {
             pk: RSAPublicKey::from_components(n, e)?,
             key_id: None,
         })
     }
 
-    pub fn to_der(&self) -> Result<Vec<u8>, Error> {
+    pub fn to_der(&self) -> Result<Vec<u8>, JWTError> {
         self.pk.to_der()
     }
 
-    pub fn to_pem(&self) -> Result<String, Error> {
+    pub fn to_pem(&self) -> Result<String, JWTError> {
         self.pk.to_pem()
     }
 

@@ -7,6 +7,7 @@ use rand::RngCore;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 
 use crate::common::VerificationOptions;
+use crate::ensure;
 use crate::error::*;
 use crate::serde_additions;
 
@@ -63,12 +64,12 @@ impl Audiences {
     /// Get the audiences as a string.
     /// If it was originally serialized as a set, it can be only converted to a
     /// string if it contains at most one element.
-    pub fn into_string(self) -> Result<String, Error> {
+    pub fn into_string(self) -> Result<String, JWTError> {
         match self {
             Audiences::AsString(audiences_str) => Ok(audiences_str),
             Audiences::AsSet(audiences) => {
                 if audiences.len() > 1 {
-                    bail!(JWTError::TooManyAudiences);
+                    return Err(JWTError::TooManyAudiences);
                 }
                 Ok(audiences
                     .iter()
@@ -81,9 +82,9 @@ impl Audiences {
 }
 
 impl TryInto<String> for Audiences {
-    type Error = Error;
+    type Error = JWTError;
 
-    fn try_into(self) -> Result<String, Error> {
+    fn try_into(self) -> Result<String, JWTError> {
         self.into_string()
     }
 }
@@ -172,12 +173,14 @@ pub struct JWTClaims<CustomClaims> {
 }
 
 impl<CustomClaims> JWTClaims<CustomClaims> {
-    pub(crate) fn validate(&self, options: &VerificationOptions) -> Result<(), Error> {
+    pub(crate) fn validate(&self, options: &VerificationOptions) -> Result<(), JWTError> {
         let now = Clock::now_since_epoch();
         let time_tolerance = options.time_tolerance.unwrap_or_default();
 
         if let Some(reject_before) = options.reject_before {
-            ensure!(now <= reject_before, JWTError::OldTokenReused);
+            if !(now <= reject_before) {
+                return Err(JWTError::OldTokenReused);
+            }
         }
         if let Some(time_issued) = self.issued_at {
             ensure!(time_issued <= now + time_tolerance, JWTError::ClockDrift);
@@ -206,7 +209,7 @@ impl<CustomClaims> JWTClaims<CustomClaims> {
                     JWTError::RequiredIssuerMismatch
                 );
             } else {
-                bail!(JWTError::RequiredIssuerMissing);
+                return Err(JWTError::RequiredIssuerMissing);
             }
         }
         if let Some(required_subject) = &options.required_subject {
@@ -216,14 +219,14 @@ impl<CustomClaims> JWTClaims<CustomClaims> {
                     JWTError::RequiredSubjectMismatch
                 );
             } else {
-                bail!(JWTError::RequiredSubjectMissing);
+                return Err(JWTError::RequiredSubjectMissing);
             }
         }
         if let Some(required_nonce) = &options.required_nonce {
             if let Some(nonce) = &self.nonce {
                 ensure!(nonce == required_nonce, JWTError::RequiredNonceMismatch);
             } else {
-                bail!(JWTError::RequiredNonceMissing);
+                return Err(JWTError::RequiredNonceMissing);
             }
         }
         if let Some(allowed_audiences) = &options.allowed_audiences {
@@ -233,7 +236,7 @@ impl<CustomClaims> JWTClaims<CustomClaims> {
                     JWTError::RequiredAudienceMismatch
                 );
             } else {
-                bail!(JWTError::RequiredAudienceMissing);
+                return Err(JWTError::RequiredAudienceMissing);
             }
         }
         Ok(())

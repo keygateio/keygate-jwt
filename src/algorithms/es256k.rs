@@ -7,8 +7,6 @@ use serde::{de::DeserializeOwned, Serialize};
 
 use crate::claims::*;
 use crate::common::*;
-#[cfg(feature = "cwt")]
-use crate::cwt_token::*;
 use crate::error::*;
 use crate::jwt_header::*;
 use crate::token::*;
@@ -24,19 +22,19 @@ impl AsRef<ecdsa::VerifyingKey> for K256PublicKey {
 }
 
 impl K256PublicKey {
-    pub fn from_bytes(raw: &[u8]) -> Result<Self, Error> {
+    pub fn from_bytes(raw: &[u8]) -> Result<Self, JWTError> {
         let k256_pk =
             ecdsa::VerifyingKey::from_sec1_bytes(raw).map_err(|_| JWTError::InvalidPublicKey)?;
         Ok(K256PublicKey(k256_pk))
     }
 
-    pub fn from_der(der: &[u8]) -> Result<Self, Error> {
+    pub fn from_der(der: &[u8]) -> Result<Self, JWTError> {
         let k256_pk = ecdsa::VerifyingKey::from_public_key_der(der)
             .map_err(|_| JWTError::InvalidPublicKey)?;
         Ok(K256PublicKey(k256_pk))
     }
 
-    pub fn from_pem(pem: &str) -> Result<Self, Error> {
+    pub fn from_pem(pem: &str) -> Result<Self, JWTError> {
         let k256_pk = ecdsa::VerifyingKey::from_public_key_pem(pem)
             .map_err(|_| JWTError::InvalidPublicKey)?;
         Ok(K256PublicKey(k256_pk))
@@ -46,7 +44,7 @@ impl K256PublicKey {
         self.0.to_bytes().to_vec()
     }
 
-    pub fn to_der(&self) -> Result<Vec<u8>, Error> {
+    pub fn to_der(&self) -> Result<Vec<u8>, JWTError> {
         let k256_pk = k256::PublicKey::from(self.0);
         Ok(k256_pk
             .to_public_key_der()
@@ -55,7 +53,7 @@ impl K256PublicKey {
             .to_vec())
     }
 
-    pub fn to_pem(&self) -> Result<String, Error> {
+    pub fn to_pem(&self) -> Result<String, JWTError> {
         let k256_pk = k256::PublicKey::from(self.0);
         Ok(k256_pk
             .to_public_key_pem(Default::default())
@@ -76,7 +74,7 @@ impl AsRef<ecdsa::SigningKey> for K256KeyPair {
 }
 
 impl K256KeyPair {
-    pub fn from_bytes(raw: &[u8]) -> Result<Self, Error> {
+    pub fn from_bytes(raw: &[u8]) -> Result<Self, JWTError> {
         let k256_sk = ecdsa::SigningKey::from_bytes(raw).map_err(|_| JWTError::InvalidKeyPair)?;
         Ok(K256KeyPair {
             k256_sk,
@@ -84,7 +82,7 @@ impl K256KeyPair {
         })
     }
 
-    pub fn from_der(der: &[u8]) -> Result<Self, Error> {
+    pub fn from_der(der: &[u8]) -> Result<Self, JWTError> {
         let k256_sk =
             ecdsa::SigningKey::from_pkcs8_der(der).map_err(|_| JWTError::InvalidKeyPair)?;
         Ok(K256KeyPair {
@@ -93,7 +91,7 @@ impl K256KeyPair {
         })
     }
 
-    pub fn from_pem(pem: &str) -> Result<Self, Error> {
+    pub fn from_pem(pem: &str) -> Result<Self, JWTError> {
         let k256_sk =
             ecdsa::SigningKey::from_pkcs8_pem(pem).map_err(|_| JWTError::InvalidKeyPair)?;
         Ok(K256KeyPair {
@@ -106,7 +104,7 @@ impl K256KeyPair {
         self.k256_sk.to_bytes().to_vec()
     }
 
-    pub fn to_der(&self) -> Result<Vec<u8>, Error> {
+    pub fn to_der(&self) -> Result<Vec<u8>, JWTError> {
         let k256_sk = k256::SecretKey::from(&self.k256_sk);
         Ok(k256_sk
             .to_pkcs8_der()
@@ -115,7 +113,7 @@ impl K256KeyPair {
             .to_vec())
     }
 
-    pub fn to_pem(&self) -> Result<String, Error> {
+    pub fn to_pem(&self) -> Result<String, JWTError> {
         let k256_sk = k256::SecretKey::from(&self.k256_sk);
         Ok(k256_sk
             .to_pkcs8_pem(Default::default())
@@ -143,12 +141,12 @@ pub trait ECDSAP256kKeyPairLike {
     fn key_pair(&self) -> &K256KeyPair;
     fn key_id(&self) -> &Option<String>;
     fn metadata(&self) -> &Option<KeyMetadata>;
-    fn attach_metadata(&mut self, metadata: KeyMetadata) -> Result<(), Error>;
+    fn attach_metadata(&mut self, metadata: KeyMetadata) -> Result<(), JWTError>;
 
     fn sign<CustomClaims: Serialize + DeserializeOwned>(
         &self,
         claims: JWTClaims<CustomClaims>,
-    ) -> Result<String, Error> {
+    ) -> Result<String, JWTError> {
         let jwt_header = JWTHeader::new(Self::jwt_alg_name().to_string(), self.key_id().clone())
             .with_metadata(self.metadata());
         Token::build(&jwt_header, claims, |authenticated| {
@@ -172,32 +170,8 @@ pub trait ECDSAP256kPublicKeyLike {
         &self,
         token: &str,
         options: Option<VerificationOptions>,
-    ) -> Result<JWTClaims<CustomClaims>, Error> {
+    ) -> Result<JWTClaims<CustomClaims>, JWTError> {
         Token::verify(
-            Self::jwt_alg_name(),
-            token,
-            options,
-            |authenticated, signature| {
-                let ecdsa_signature = ecdsa::Signature::try_from(signature)
-                    .map_err(|_| JWTError::InvalidSignature)?;
-                let mut digest = hmac_sha256::Hash::new();
-                digest.update(authenticated.as_bytes());
-                self.public_key()
-                    .as_ref()
-                    .verify_digest(digest, &ecdsa_signature)
-                    .map_err(|_| JWTError::InvalidSignature)?;
-                Ok(())
-            },
-        )
-    }
-
-    #[cfg(feature = "cwt")]
-    fn verify_cwt_token<CustomClaims: Serialize + DeserializeOwned>(
-        &self,
-        token: &[u8],
-        options: Option<VerificationOptions>,
-    ) -> Result<JWTClaims<NoCustomClaims>, Error> {
-        CWTToken::verify(
             Self::jwt_alg_name(),
             token,
             options,
@@ -254,28 +228,28 @@ impl ECDSAP256kKeyPairLike for ES256kKeyPair {
         &self.key_pair.metadata
     }
 
-    fn attach_metadata(&mut self, metadata: KeyMetadata) -> Result<(), Error> {
+    fn attach_metadata(&mut self, metadata: KeyMetadata) -> Result<(), JWTError> {
         self.key_pair.metadata = Some(metadata);
         Ok(())
     }
 }
 
 impl ES256kKeyPair {
-    pub fn from_bytes(raw: &[u8]) -> Result<Self, Error> {
+    pub fn from_bytes(raw: &[u8]) -> Result<Self, JWTError> {
         Ok(ES256kKeyPair {
             key_pair: K256KeyPair::from_bytes(raw)?,
             key_id: None,
         })
     }
 
-    pub fn from_der(der: &[u8]) -> Result<Self, Error> {
+    pub fn from_der(der: &[u8]) -> Result<Self, JWTError> {
         Ok(ES256kKeyPair {
             key_pair: K256KeyPair::from_der(der)?,
             key_id: None,
         })
     }
 
-    pub fn from_pem(pem: &str) -> Result<Self, Error> {
+    pub fn from_pem(pem: &str) -> Result<Self, JWTError> {
         Ok(ES256kKeyPair {
             key_pair: K256KeyPair::from_pem(pem)?,
             key_id: None,
@@ -286,11 +260,11 @@ impl ES256kKeyPair {
         self.key_pair.to_bytes()
     }
 
-    pub fn to_der(&self) -> Result<Vec<u8>, Error> {
+    pub fn to_der(&self) -> Result<Vec<u8>, JWTError> {
         self.key_pair.to_der()
     }
 
-    pub fn to_pem(&self) -> Result<String, Error> {
+    pub fn to_pem(&self) -> Result<String, JWTError> {
         self.key_pair.to_pem()
     }
 
@@ -333,21 +307,21 @@ impl ECDSAP256kPublicKeyLike for ES256kPublicKey {
 }
 
 impl ES256kPublicKey {
-    pub fn from_bytes(raw: &[u8]) -> Result<Self, Error> {
+    pub fn from_bytes(raw: &[u8]) -> Result<Self, JWTError> {
         Ok(ES256kPublicKey {
             pk: K256PublicKey::from_bytes(raw)?,
             key_id: None,
         })
     }
 
-    pub fn from_der(der: &[u8]) -> Result<Self, Error> {
+    pub fn from_der(der: &[u8]) -> Result<Self, JWTError> {
         Ok(ES256kPublicKey {
             pk: K256PublicKey::from_der(der)?,
             key_id: None,
         })
     }
 
-    pub fn from_pem(pem: &str) -> Result<Self, Error> {
+    pub fn from_pem(pem: &str) -> Result<Self, JWTError> {
         Ok(ES256kPublicKey {
             pk: K256PublicKey::from_pem(pem)?,
             key_id: None,
@@ -358,11 +332,11 @@ impl ES256kPublicKey {
         self.pk.to_bytes()
     }
 
-    pub fn to_der(&self) -> Result<Vec<u8>, Error> {
+    pub fn to_der(&self) -> Result<Vec<u8>, JWTError> {
         self.pk.to_der()
     }
 
-    pub fn to_pem(&self) -> Result<String, Error> {
+    pub fn to_pem(&self) -> Result<String, JWTError> {
         self.pk.to_pem()
     }
 
