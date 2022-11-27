@@ -23,7 +23,7 @@
 //! knowing a secret key. It does not provide any kind of confidentiality: JWT
 //! data is simply encoded as BASE64, and is not encrypted.
 
-#![deny(unsafe_code)]
+#![forbid(unsafe_code)]
 
 pub mod algorithms;
 pub mod claims;
@@ -69,18 +69,6 @@ pub mod prelude {
 #[cfg(test)]
 mod tests {
     use crate::prelude::*;
-
-    #[cfg(feature = "none")]
-    #[allow(unsafe_code)]
-    #[test]
-    fn none() {
-        unsafe {
-            let none = NoneAlgorithm::new();
-            let claims = Claims::create(Duration::from_secs(86400));
-            let token = none.create(claims).unwrap();
-            let _claims = none.parse_token::<NoCustomClaims>(&token, None).unwrap();
-        }
-    }
 
     #[cfg(feature = "ecdsa")]
     #[test]

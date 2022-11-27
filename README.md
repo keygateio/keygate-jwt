@@ -10,12 +10,14 @@
   - [Usage](#usage)
   - [Signatures](#signatures)
     - [Key pairs and tokens creation](#key-pairs-and-tokens-creation)
+      - [ES256](#es256)
+      - [ES384](#es384)
   - [Advanced usage](#advanced-usage)
     - [Custom claims](#custom-claims)
     - [Peeking at metadata before verification](#peeking-at-metadata-before-verification)
-    - [Creating and attaching key identifiers](#creating-and-attaching-key-identifiers)
     - [Mitigations against replay attacks](#mitigations-against-replay-attacks)
   - [Why yet another JWT crate](#why-yet-another-jwt-crate)
+  - [Credits](#credits)
 
 <!-- /code_chunk_output -->
 
@@ -27,13 +29,12 @@ A new JWT (JSON Web Tokens) implementation for Rust that focuses on simplicity, 
 
 | JWT algorithm name | Feature | Description                    |
 | ------------------ | ------- | ------------------------------ |
+| `EdDSA`            | `eddsa` | Ed25519 (Recommended)          |
 | `ES256`            | `ecdsa` | ECDSA over p256 / SHA-256      |
 | `ES384`            | `ecdsa` | ECDSA over p384 / SHA-384      |
 | `ES256K`           | `ecdsa` | ECDSA over secp256k1 / SHA-256 |
-| `EdDSA`            | `eddsa` | Ed25519                        |
 
-Additionally, you can enable support for the `none` algorithm, which is useful for testing purposes.
-This algorithm is disabled by default and should never be used to on its own. It can however be useful for non security relevant data. JWTs created with the `none` algorithm are not verified and can be tampered with. Additionally, the `none` algorithm does not provide any integrity guarantees. To make sure that the `none` algorithm is never used instead of a secure algorithm, it is marked as unsafe and requires an explicit opt-in.
+Whenever possible, you should use `EdDSA`, however not all JWT libraries support it yet so `ecdsa` is also supported.
 
 `keygate-jwt` uses only pure Rust implementations, and can be compiled out of the box to WebAssembly/WASI.
 
