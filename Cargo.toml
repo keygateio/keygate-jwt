@@ -8,16 +8,16 @@ license = "ISC"
 name = "keygate-jwt"
 readme = "README.md"
 repository = "https://github.com/keygateio/keygate-jwt"
-version = "1.2.0"
+version = "1.2.1"
 
 [dependencies]
 coarsetime = "0.1"
 ct-codecs = "1.1"
 
 # ecdsa
-k256 = {version = "0.11", features = ["ecdsa", "std", "pkcs8", "pem"], optional = true}
-p256 = {version = "0.11", features = ["ecdsa", "std", "pkcs8", "pem"], optional = true}
-p384 = {version = "0.11", features = ["ecdsa", "std", "pkcs8", "pem"], optional = true}
+k256 = {version = "0.12", features = ["ecdsa", "std", "pkcs8", "pem"], optional = true}
+p256 = {version = "0.12", features = ["ecdsa", "std", "pkcs8", "pem"], optional = true}
+p384 = {version = "0.12", features = ["ecdsa", "std", "pkcs8", "pem"], optional = true}
 rand = {version = "0.8", features = [], optional = true}
 
 # eddsa
