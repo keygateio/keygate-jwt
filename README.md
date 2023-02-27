@@ -188,4 +188,4 @@ There are already several JWT crates for Rust, but none of them satisfied our ne
 
 ## Credits
 
-This crate is based on the [jwt-simple](https://github.com/jedisct1/rust-jwt-simple) project by Frank Denis.
+This crate is based on the [jwt-simple](https://github.com/jedisct1/rust-jwt-simple) project by Frank Denis. Notable changes are the introduction of cargo feature flags and unneeded dependencies, and the removal of support for insecure algorithms. [1](https://github.com/jedisct1/rust-jwt-simple/issues/72)

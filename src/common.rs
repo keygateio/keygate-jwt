@@ -39,7 +39,7 @@ pub struct VerificationOptions {
     /// Require the audience to be present in the set
     pub allowed_audiences: Option<HashSet<String>>,
 
-    /// Time tolerance for validating expiration dates
+    /// How much clock drift to tolerate when verifying token timestamps
     pub time_tolerance: Option<Duration>,
 
     /// Reject tokens created more than `max_validity` ago
@@ -48,7 +48,7 @@ pub struct VerificationOptions {
     /// Maximum token length to accept
     pub max_token_length: Option<usize>,
 
-    /// Maximum header length to accept
+    /// Maximum unsafe, untrusted, unverified JWT header length to accept
     pub max_header_length: Option<usize>,
 }
 
