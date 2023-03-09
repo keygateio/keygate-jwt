@@ -76,7 +76,8 @@ impl AsRef<ecdsa::SigningKey> for K256KeyPair {
 
 impl K256KeyPair {
     pub fn from_bytes(raw: &[u8]) -> Result<Self, JWTError> {
-        let k256_sk = ecdsa::SigningKey::from_bytes(raw).map_err(|_| JWTError::InvalidKeyPair)?;
+        let k256_sk =
+            ecdsa::SigningKey::from_bytes(raw.into()).map_err(|_| JWTError::InvalidKeyPair)?;
         Ok(K256KeyPair {
             k256_sk,
             metadata: None,
