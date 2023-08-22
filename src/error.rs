@@ -70,8 +70,8 @@ pub enum JWTError {
     #[error("Token is too long")]
     TokenTooLong,
 
-    #[error(transparent)]
-    Codec(#[from] ct_codecs::Error),
+    #[error("codec error: {0}")]
+    Codec(String),
 
     #[error(transparent)]
     Serde(#[from] serde_json::Error),
@@ -79,6 +79,18 @@ pub enum JWTError {
     #[cfg(feature = "eddsa")]
     #[error(transparent)]
     Ed25519(#[from] ed25519_compact::Error),
+}
+
+impl From<base64ct::Error> for JWTError {
+    fn from(e: base64ct::Error) -> JWTError {
+        JWTError::Codec(e.to_string())
+    }
+}
+
+impl From<hex::FromHexError> for JWTError {
+    fn from(e: hex::FromHexError) -> JWTError {
+        JWTError::Codec(e.to_string())
+    }
 }
 
 impl From<&str> for JWTError {

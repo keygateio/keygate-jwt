@@ -1,6 +1,6 @@
 use std::convert::TryFrom;
 
-use ct_codecs::{Base64UrlSafeNoPadding, Encoder};
+use base64ct::{Base64UrlUnpadded, Encoding};
 use p256::ecdsa::{self, signature::DigestVerifier as _, signature::RandomizedDigestSigner as _};
 use p256::pkcs8::{DecodePrivateKey, DecodePublicKey, EncodePrivateKey, EncodePublicKey};
 use p256::NonZeroScalar;
@@ -212,7 +212,7 @@ pub trait ECDSAP256PublicKeyLike {
     fn create_key_id(&mut self) -> Result<String, JWTError> {
         let mut hasher = sha2::Sha256::new();
         hasher.update(self.public_key().to_bytes());
-        let key_id = Base64UrlSafeNoPadding::encode_to_string(hasher.finalize())?;
+        let key_id = Base64UrlUnpadded::encode_string(&hasher.finalize());
         self.set_key_id(key_id.clone());
         Ok(key_id)
     }

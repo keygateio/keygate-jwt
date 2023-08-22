@@ -12,7 +12,8 @@ version = "1.4.1"
 
 [dependencies]
 coarsetime = "0.1"
-ct-codecs = "1.1"
+base64ct = "1.6"
+hex = "0.4"
 
 # ecdsa
 k256 = {version = "0.13", features = ["ecdsa", "std", "pkcs8", "pem"], optional = true}
@@ -35,10 +36,4 @@ ecdsa = ["dep:k256", "dep:p256", "dep:p384", "dep:rand"]
 eddsa = ["dep:ed25519-compact"]
 
 [profile.release]
-codegen-units = 1
 incremental = false
-lto = "fat"
-panic = "abort"
-
-[profile.bench]
-codegen-units = 1

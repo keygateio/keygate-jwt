@@ -40,9 +40,6 @@ pub mod prelude {
     pub use std::collections::HashSet;
 
     pub use coarsetime::{self, Clock, Duration, UnixTimeStamp};
-    pub use ct_codecs::{
-        Base64, Base64NoPadding, Base64UrlSafe, Base64UrlSafeNoPadding, Decoder as _, Encoder as _,
-    };
     pub use serde::{Deserialize, Serialize};
 
     pub use crate::algorithms::*;

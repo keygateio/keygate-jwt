@@ -1,4 +1,5 @@
-use ct_codecs::{Base64UrlSafeNoPadding, Decoder, Encoder};
+use base64ct::Base64UrlUnpadded;
+use base64ct::Encoding;
 use serde::{de::DeserializeOwned, Serialize};
 
 use crate::claims::*;
@@ -100,15 +101,15 @@ impl Token {
         let claims_json = serde_json::to_string(&claims)?;
         let authenticated = format!(
             "{}.{}",
-            Base64UrlSafeNoPadding::encode_to_string(jwt_header_json)?,
-            Base64UrlSafeNoPadding::encode_to_string(claims_json)?
+            Base64UrlUnpadded::encode_string(jwt_header_json.as_bytes()),
+            Base64UrlUnpadded::encode_string(claims_json.as_bytes())
         );
         let authentication_tag_or_signature = authentication_or_signature_fn(&authenticated)?;
         let mut token = authenticated;
         token.push('.');
-        token.push_str(&Base64UrlSafeNoPadding::encode_to_string(
-            authentication_tag_or_signature,
-        )?);
+        token.push_str(&Base64UrlUnpadded::encode_string(
+            &authentication_tag_or_signature,
+        ));
         Ok(token)
     }
 
@@ -136,9 +137,8 @@ impl Token {
         let claims_b64 = parts.next().ok_or(JWTError::CompactEncodingError)?;
         let authentication_tag_b64 = parts.next().ok_or(JWTError::CompactEncodingError)?;
         ensure!(parts.next().is_none(), JWTError::CompactEncodingError);
-        let jwt_header: JWTHeader = serde_json::from_slice(
-            &Base64UrlSafeNoPadding::decode_to_vec(jwt_header_b64, None)?,
-        )?;
+        let jwt_header: JWTHeader =
+            serde_json::from_slice(&Base64UrlUnpadded::decode_vec(jwt_header_b64)?)?;
         if let Some(signature_type) = &jwt_header.signature_type {
             let signature_type_uc = signature_type.to_uppercase();
             ensure!(
@@ -157,12 +157,11 @@ impl Token {
                 return Err(JWTError::MissingJWTKeyIdentifier);
             }
         }
-        let authentication_tag =
-            Base64UrlSafeNoPadding::decode_to_vec(authentication_tag_b64, None)?;
+        let authentication_tag = Base64UrlUnpadded::decode_vec(authentication_tag_b64)?;
         let authenticated = &token[..jwt_header_b64.len() + 1 + claims_b64.len()];
         authentication_or_signature_fn(authenticated, &authentication_tag)?;
         let claims: JWTClaims<CustomClaims> =
-            serde_json::from_slice(&Base64UrlSafeNoPadding::decode_to_vec(claims_b64, None)?)?;
+            serde_json::from_slice(&Base64UrlUnpadded::decode_vec(claims_b64)?)?;
         claims.validate(&options)?;
         Ok(claims)
     }
@@ -176,9 +175,8 @@ impl Token {
             jwt_header_b64.len() <= MAX_HEADER_LENGTH,
             JWTError::HeaderTooLarge
         );
-        let jwt_header: JWTHeader = serde_json::from_slice(
-            &Base64UrlSafeNoPadding::decode_to_vec(jwt_header_b64, None)?,
-        )?;
+        let jwt_header: JWTHeader =
+            serde_json::from_slice(&Base64UrlUnpadded::decode_vec(jwt_header_b64)?)?;
         Ok(TokenMetadata { jwt_header })
     }
 }

@@ -1,4 +1,5 @@
-use ct_codecs::{Base64UrlSafeNoPadding, Encoder};
+use base64ct::Base64UrlUnpadded;
+use base64ct::Encoding;
 use serde::{de::DeserializeOwned, Serialize};
 use sha2::Digest;
 
@@ -177,7 +178,7 @@ pub trait EdDSAPublicKeyLike {
     fn create_key_id(&mut self) -> Result<String, JWTError> {
         let mut hasher = sha2::Sha256::new();
         hasher.update(self.public_key().to_bytes());
-        let key_id = Base64UrlSafeNoPadding::encode_to_string(hasher.finalize())?;
+        let key_id = Base64UrlUnpadded::encode_string(&hasher.finalize());
         self.set_key_id(key_id.clone());
         Ok(key_id)
     }
@@ -332,8 +333,7 @@ impl Ed25519PublicKey {
     pub fn sha256_thumbprint(&self) -> Result<String, JWTError> {
         let mut hasher = sha2::Sha256::new();
         hasher.update(self.to_der());
-        Ok(Base64UrlSafeNoPadding::encode_to_string(
-            hasher.finalize().as_slice(),
-        )?)
+
+        Ok(Base64UrlUnpadded::encode_string(&hasher.finalize()))
     }
 }

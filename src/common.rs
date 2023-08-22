@@ -1,7 +1,7 @@
 use std::collections::HashSet;
 
+use base64ct::{Base64UrlUnpadded, Encoding};
 use coarsetime::{Duration, UnixTimeStamp};
-use ct_codecs::{Base64UrlSafeNoPadding, Decoder, Encoder, Hex};
 
 use crate::{claims::DEFAULT_TIME_TOLERANCE_SECS, ensure, JWTError};
 
@@ -109,16 +109,13 @@ impl KeyMetadata {
         let thumbprint = certificate_sha256_thumbprint.to_string();
         let mut bin = [0u8; 32];
         if thumbprint.len() == 64 {
-            ensure!(
-                Hex::decode(&mut bin, &thumbprint, None)?.len() == bin.len(),
-                JWTError::InvalidCertThumprint
-            );
-            let thumbprint = Base64UrlSafeNoPadding::encode_to_string(bin)?;
+            hex::decode_to_slice(&thumbprint, &mut bin)?;
+            let thumbprint = Base64UrlUnpadded::encode_string(&bin);
             self.certificate_sha256_thumbprint = Some(thumbprint);
             return Ok(self);
         }
         ensure!(
-            Base64UrlSafeNoPadding::decode(&mut bin, &thumbprint, None)?.len() == bin.len(),
+            Base64UrlUnpadded::decode(&thumbprint, &mut bin)?.len() == bin.len(),
             JWTError::InvalidCertThumprint
         );
         self.certificate_sha256_thumbprint = Some(thumbprint);
