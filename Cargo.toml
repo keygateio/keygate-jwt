@@ -1,6 +1,6 @@
 [package]
 categories = ["wasm", "api-bindings", "web-programming", "cryptography"]
-description = "Easy to use, secure, opinionated JWT (JSON Web Tokens) implementation for Rust."
+description = "Easy to use, secure, and opinionated JWT (JSON Web Tokens) implementation for Rust"
 edition = "2021"
 homepage = "https://github.com/keygateio/keygate-jwt"
 keywords = ["jwt", "jws", "authentication", "tokens", "json"]
@@ -8,7 +8,7 @@ license = "MIT"
 name = "keygate-jwt"
 readme = "README.md"
 repository = "https://github.com/keygateio/keygate-jwt"
-version = "1.4.1"
+version = "1.4.2"
 
 [dependencies]
 base64ct = "1.6"
@@ -19,7 +19,7 @@ hex = "0.4"
 k256 = {version = "0.13", features = ["ecdsa", "std", "pkcs8", "pem"], optional = true}
 p256 = {version = "0.13", features = ["ecdsa", "std", "pkcs8", "pem"], optional = true}
 p384 = {version = "0.13", features = ["ecdsa", "std", "pkcs8", "pem"], optional = true}
-rand = {version = "0.8", features = [], optional = true}
+rand = {version = "0.8", default-features = true, optional = true}
 
 # eddsa
 ed25519-compact = {version = "2.0", features = ["pem"], optional = true}
