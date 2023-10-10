@@ -23,7 +23,7 @@
 
 # keygate-jwt
 
-A new JWT (JSON Web Tokens) implementation for Rust that focuses on simplicity, while avoiding common JWT security pitfalls.
+A new JWT (JSON Web Tokens) implementation for Rust that focuses on simplicity while avoiding common JWT security pitfalls.
 
 `keygate-jwt` is opinionated and only supports secure signature algorithms:
 
@@ -34,11 +34,11 @@ A new JWT (JSON Web Tokens) implementation for Rust that focuses on simplicity, 
 | `ES384`            | `ecdsa` | ECDSA over p384 / SHA-384      |
 | `ES256K`           | `ecdsa` | ECDSA over secp256k1 / SHA-256 |
 
-Whenever possible, you should use `EdDSA`, however not all JWT libraries support it yet so `ecdsa` is also supported.
+Whenever possible, you should use `EdDSA`, however not all JWT libraries support it yet, so `ecdsa` is also supported.
 
-`keygate-jwt` uses only pure Rust implementations, and can be compiled out of the box to WebAssembly/WASI.
+`keygate-jwt` uses only pure Rust implementations and can be compiled out of the box to WebAssembly/WASI.
 
-Important: JWT's purpose is to verify that data has been created by a party knowing a secret key. It does not provide any kind of confidentiality: JWT data is simply encoded as BASE64, and is not encrypted.
+Important: JWT's purpose is to verify that data has been created by a party knowing a secret key. It does not provide any confidentiality: JWT data is simply encoded as BASE64 and is not encrypted.
 
 ## Usage
 
@@ -53,7 +53,7 @@ Errors are returned as `keygate-jwt::Error` values
 
 ## Signatures
 
-A signature requires a key pair: a secret key used to create tokens, and a public key, that can only verify them.
+A signature requires a key pair: a secret key used to create tokens and a public key that can only verify them.
 
 Always use a signature scheme if both parties do not ultimately trust each other, such as tokens exchanged between clients and API providers.
 
@@ -85,7 +85,7 @@ let key_pair = ES384KeyPair::generate();
 let public_key = key_pair.public_key();
 ```
 
-Keys can be exported as bytes for later reuse, and imported from bytes or, for RSA, from individual parameters, DER-encoded data or PEM-encoded data.
+Keys can be exported as bytes for later reuse and imported from bytes or, for RSA, from individual parameters, DER-encoded or PEM-encoded data.
 
 RSA key pair creation, using OpenSSL and PEM importation of the secret key:
 
@@ -99,7 +99,7 @@ let key_pair = RS384KeyPair::from_pem(private_pem_file_content)?;
 let public_key = RS384PublicKey::from_pem(public_pem_file_content)?;
 ```
 
-Token creation and verification work the same way as with `HS*` algorithms, except that tokens are created with a key pair, and verified using the corresponding public key.
+Token creation and verification work the same way as with `HS*` algorithms, except that tokens are created with a key pair and verified using the corresponding public key.
 
 Token creation:
 
@@ -128,7 +128,7 @@ let claims = Claims::create(Duration::from_hours(2)).
     with_issuer("Example issuer").with_subject("Example subject");
 ```
 
-But application-defined claims can also be defined. These simply have to be present in a serializable type (this requires the `serde` crate):
+You can also define your own claims. These have to be present in a serializable type (this requires the `serde` crate):
 
 ```rust
 #[derive(Serialize, Deserialize)]
@@ -157,7 +157,7 @@ let user_is_admin = claims.custom.user_is_admin;
 
 ### Peeking at metadata before verification
 
-Properties such as the key identifier can be useful prior to tag or signature verification in order to pick the right key out of a set.
+Properties such as the key identifier can be helpful before tag or signature verification to pick the right key out of a set.
 
 ```rust
 let metadata = Token::decode_metadata(&token)?;
@@ -166,18 +166,18 @@ let algorithm = metadata.algorithm();
 // all other standard properties are also accessible
 ```
 
-**IMPORTANT:** neither the key ID nor the algorithm can be trusted. This is an unfixable design flaw of the JWT standard.
+**IMPORTANT:** You can't trust the key ID, nor the algorithm
 
-As a result, `algorithm` should be used only for debugging purposes, and never to select a key type.
-Similarly, `key_id` should be used only to select a key in a set of keys made for the same algorithm.
+As a result, `algorithm` should be used only for debugging purposes and never to select a key type.
+Similarly, `key_id` should be used only to select a key in a set of keys for the same algorithm.
 
 ### Mitigations against replay attacks
 
 `keygate-jwt` includes mechanisms to mitigate replay attacks:
 
 - Nonces can be attached to new tokens using the `with_nonce()` claim function. The verification procedure can later reject any token that doesn't include the expected nonce (`required_nonce` verification option).
-- The verification procedure can reject tokens created too long ago, no matter what their expiration date is. This prevents tokens from malicious (or compromised) signers from being used for too long.
-- The verification procedure can reject tokens created before a date. For a given user, the date of the last successful authentication can be stored in a database, and used later along with this option to reject older (replayed) tokens.
+- The verification procedure can reject tokens created too long ago, no matter their expiration date. This prevents tokens from malicious (or compromised) signers from being used too long.
+- The verification procedure can reject tokens created before a date. For a given user, the date of the last successful authentication can be stored in a database and used later, along with this option, to reject older (replayed) tokens.
 
 ## Why yet another JWT crate
 
@@ -188,4 +188,4 @@ There are already several JWT crates for Rust, but none of them satisfied our ne
 
 ## Credits
 
-This crate is based on the [jwt-simple](https://github.com/jedisct1/rust-jwt-simple) project by Frank Denis. Notable changes are the introduction of cargo feature flags and unneeded dependencies, and the removal of support for insecure algorithms. [1](https://github.com/jedisct1/rust-jwt-simple/issues/72)
+This crate is based on the [jwt-simple](https://github.com/jedisct1/rust-jwt-simple) project by Frank Denis. Notable changes include introducing cargo feature flags and unneeded dependencies and removing support for insecure algorithms. [1](https://github.com/jedisct1/rust-jwt-simple/issues/72)

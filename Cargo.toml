@@ -11,8 +11,8 @@ repository = "https://github.com/keygateio/keygate-jwt"
 version = "1.4.1"
 
 [dependencies]
-coarsetime = "0.1"
 base64ct = "1.6"
+coarsetime = "0.1"
 hex = "0.4"
 
 # ecdsa
