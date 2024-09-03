@@ -67,16 +67,17 @@ impl JWTHeader {
             Some(metadata) => metadata,
         };
         if self.key_set_url.is_none() {
-            self.key_set_url = metadata.key_set_url.clone();
+            self.key_set_url.clone_from(&metadata.key_set_url);
         }
         if self.public_key.is_none() {
-            self.public_key = metadata.public_key.clone();
+            self.public_key.clone_from(&metadata.public_key);
         }
         if self.certificate_url.is_none() {
-            self.certificate_url = metadata.certificate_url.clone();
+            self.certificate_url.clone_from(&metadata.certificate_url);
         }
         if self.certificate_sha256_thumbprint.is_none() {
-            self.certificate_sha256_thumbprint = metadata.certificate_sha256_thumbprint.clone();
+            self.certificate_sha256_thumbprint
+                .clone_from(&metadata.certificate_sha256_thumbprint);
         }
         self
     }
